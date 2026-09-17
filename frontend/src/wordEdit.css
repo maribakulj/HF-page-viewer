@@ -1,4 +1,5 @@
-.word-edit-panel {
+.word-edit-panel,
+.bbox-edit-panel {
   display: grid;
   gap: 9px;
   padding: 12px;
@@ -21,18 +22,26 @@
 }
 
 .word-edit-heading p,
-.word-edit-panel .muted {
+.word-edit-panel .muted,
+.bbox-edit-panel .muted {
   margin: 0;
   font-size: .7rem;
   line-height: 1.4;
 }
 
-.word-edit-panel input {
+.word-edit-panel input,
+.bbox-edit-panel input {
   width: 100%;
   box-sizing: border-box;
   padding: 7px 8px;
   border: 1px solid #cbd2dd;
   border-radius: 7px;
+}
+
+.bbox-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
 }
 
 .word-edit-actions {
