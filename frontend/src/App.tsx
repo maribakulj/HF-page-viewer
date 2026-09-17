@@ -8,6 +8,8 @@ import { PageViewer } from "./components/PageViewer";
 import { assessAlignment, countPageElements, flattenPage } from "./pageModel";
 import type { LayerState, PageDocumentDTO } from "./types";
 import { useLocalImage } from "./useLocalImage";
+import { validateDocument } from "./validation";
+import type { ValidationFinding } from "./validation";
 
 const defaultLayers: LayerState = {
   regions: true,
@@ -62,6 +64,18 @@ export default function App() {
   const counts = useMemo(() => (page ? countPageElements(page) : null), [page]);
   const selected = useMemo(() => nodes.find((node) => node.key === selectedKey) ?? null, [nodes, selectedKey]);
   const alignment = useMemo(() => assessAlignment(page, image), [image, page]);
+  const validationReport = useMemo(
+    () => document ? validateDocument(document, { image, imagePageIndex: image ? pageIndex : null }) : null,
+    [document, image, pageIndex],
+  );
+
+  const selectValidationFinding = (finding: ValidationFinding): void => {
+    const findingPage = finding.target.page_index;
+    if (findingPage != null && findingPage >= 0 && findingPage < (document?.pages.length ?? 0)) {
+      setPageIndex(findingPage);
+    }
+    if (finding.target.node_key) setSelectedKey(finding.target.node_key);
+  };
 
   return (
     <main className="shell">
@@ -72,6 +86,7 @@ export default function App() {
         </div>
         <div className="topbar-statuses">
           {document && <span className="status status-neutral">{formatName(document)} {document.source_version ?? "?"}</span>}
+          {validationReport && validationReport.summary.errors > 0 && <span className="status status-error">{validationReport.summary.errors} validation error{validationReport.summary.errors === 1 ? "" : "s"}</span>}
           <span className="status status-ok">Static · browser-local</span>
         </div>
       </header>
@@ -116,7 +131,18 @@ export default function App() {
           )}
         </section>
 
-        <Inspector document={document} page={page} image={image} counts={counts} selected={selected} selectedKey={selectedKey} alignment={alignment} onSelect={setSelectedKey} />
+        <Inspector
+          document={document}
+          page={page}
+          image={image}
+          counts={counts}
+          selected={selected}
+          selectedKey={selectedKey}
+          alignment={alignment}
+          validationReport={validationReport}
+          onSelect={setSelectedKey}
+          onValidationSelect={selectValidationFinding}
+        />
       </section>
     </main>
   );
