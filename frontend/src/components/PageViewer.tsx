@@ -92,6 +92,7 @@ export function PageViewer({
   const osdElementRef = useRef<HTMLDivElement | null>(null);
   const overlayRef = useRef<SVGSVGElement | null>(null);
   const viewerRef = useRef<OpenSeadragon.Viewer | null>(null);
+  const syncOverlayRef = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     const element = osdElementRef.current;
@@ -124,6 +125,7 @@ export function PageViewer({
       overlay.style.width = `${bottomRight.x - topLeft.x}px`;
       overlay.style.height = `${bottomRight.y - topLeft.y}px`;
     };
+    syncOverlayRef.current = syncOverlay;
 
     viewer.addHandler("open", syncOverlay);
     viewer.addHandler("animation", syncOverlay);
@@ -131,10 +133,17 @@ export function PageViewer({
     viewer.addHandler("resize", syncOverlay);
 
     return () => {
+      syncOverlayRef.current = () => undefined;
       viewerRef.current = null;
       viewer.destroy();
     };
   }, [image.height, image.url, image.width]);
+
+  useEffect(() => {
+    if (!page || !alignment.canRender) return;
+    const frame = requestAnimationFrame(() => syncOverlayRef.current());
+    return () => cancelAnimationFrame(frame);
+  }, [alignment.canRender, page]);
 
   const visibleNodes = useMemo(
     () => nodes.filter((node) => isLayerVisible(node, layers) && node.geometry !== null),
@@ -236,7 +245,7 @@ export function PageViewer({
 
       {budgetExceeded && (
         <div className="viewer-banner viewer-banner-warning">
-          Dense page: showing {renderedNodes.length.toLocaleString()} of {visibleNodes.length.toLocaleString()} interactive shapes. Disable a dense layer or zoom via the structure inspector.
+          Dense page: showing {renderedNodes.length.toLocaleString()} of {visibleNodes.length.toLocaleString()} interactive shapes. Disable a dense layer to inspect the remaining geometry.
         </div>
       )}
       {!alignment.canRender && <div className="viewer-banner viewer-banner-warning">{alignment.message}</div>}
