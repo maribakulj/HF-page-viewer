@@ -1,0 +1,74 @@
+name: IIIF Live Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/iiif-native-tiles
+    paths:
+      - "frontend/**"
+      - ".github/workflows/iiif-live-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  live-iiif:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm install --no-audit --no-fund
+
+      - name: Type-check application
+        working-directory: frontend
+        run: npm run build
+
+      - name: Record system Chrome
+        run: google-chrome --version
+
+      - name: Run live IIIF browser smoke
+        working-directory: frontend
+        env:
+          CHROME_BIN: /usr/bin/google-chrome
+          IIIF_SMOKE_URL: http://127.0.0.1:4175/
+        run: |
+          set -euo pipefail
+          npm run dev -- --host 127.0.0.1 --port 4175 > /tmp/hf-page-viewer-iiif-smoke-vite.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+
+          READY=0
+          for attempt in $(seq 1 40); do
+            if curl -fsS "http://127.0.0.1:4175/" >/dev/null; then
+              READY=1
+              break
+            fi
+            sleep 0.5
+          done
+          if [ "$READY" -ne 1 ]; then
+            cat /tmp/hf-page-viewer-iiif-smoke-vite.log
+            exit 1
+          fi
+
+          node benchmark/iiif-live-smoke.mjs
+          cat iiif-smoke-results/iiif-live-smoke.json
+
+      - name: Upload IIIF smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iiif-live-smoke-${{ github.sha }}
+          path: frontend/iiif-smoke-results/
+          if-no-files-found: warn
+          retention-days: 30

@@ -29,6 +29,8 @@ The deployed Hugging Face Space is deliberately **static**. The production Space
 - direct browser-side IIIF metadata loading with timeout/size limits, no credential forwarding and explicit HTTP/JSON/network/CORS diagnostics;
 - explicit Canvas and painting-image selection, with no silent choice when a Canvas exposes multiple painting candidates;
 - local and IIIF images can coexist and the user can explicitly choose which raster is displayed;
+- native OpenSeadragon tiled rendering from normalized Image API 2/3 `info.json` sources, with raster fallback when no usable image service exists;
+- explicit IIIF TileSource/open and terminal tile-load diagnostics kept separate from metadata-fetch errors;
 - deterministic XML↔IIIF Canvas/image dimension findings while preserving local-raster validation separately;
 - OpenSeadragon pan/zoom;
 - synchronized overlays for regions, lines, words, glyphs, baselines and reading order;
@@ -43,9 +45,8 @@ The deployed Hugging Face Space is deliberately **static**. The production Space
 - validation findings linked back to viewer targets, with evidence/remediation and JSON report export;
 - explicit `XSD not pinned for this version` status for parseable legacy/other namespaces rather than validating them against the wrong schema;
 - reproducible Chrome-headless overlay benchmarks comparing full SVG with adaptive rendering at 1k/10k/50k source-geometry loads; results are documented in [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md);
+- reproducible live-IIIF browser smoke tests for real Image 2/3 and Presentation endpoints; evidence is documented in [`docs/IIIF.md`](docs/IIIF.md);
 - frontend tests and TypeScript build gates.
-
-Native OpenSeadragon consumption of normalized IIIF `info.json` tile sources is the next IIIF rendering tranche. The current browser-core implementation uses the canonical full-image request for display while retaining `info.json` in the normalized source model. See [`docs/IIIF.md`](docs/IIIF.md).
 
 ## Architecture
 
@@ -83,14 +84,15 @@ normalized sources + diagnostics
         ┌───────┴────────┐
         ▼                ▼
  OpenSeadragon        Inspector
- + SVG overlays        validation / metadata
+ raster / IIIF tiles   validation / metadata
+ + SVG overlays
 ```
 
 The canonical runtime is the TypeScript frontend. The existing Python backend is retained temporarily as a reference implementation and fixture oracle while browser parity is established; the deployed application does not call it.
 
 Semantic validation is implemented as pure TypeScript rules. Normative XSD validation uses `libxml2-wasm` 0.7.2 in a separate ES-module Worker. Schema files are version-pinned, SHA-256 verified during CI/build, bundled into the static application, and loaded only from the deployed Space's own origin at runtime. See [`docs/SCHEMAS.md`](docs/SCHEMAS.md).
 
-IIIF parsing, fetching, source selection and XML↔IIIF findings are provider-neutral. Browser fetch failures distinguish HTTP, malformed JSON, timeout/size failures and likely CORS denial; CORS denial is reported as an access/interoperability limitation rather than evidence that a remote IIIF resource is invalid. See [`docs/IIIF.md`](docs/IIIF.md).
+IIIF parsing, fetching, source selection and XML↔IIIF findings are provider-neutral. Browser fetch failures distinguish HTTP, malformed JSON, timeout/size failures and likely CORS denial; CORS denial is reported as an access/interoperability limitation rather than evidence that a remote IIIF resource is invalid. OpenSeadragon uses native Image API 2/3 `info.json` TileSources where available. See [`docs/IIIF.md`](docs/IIIF.md).
 
 The viewer remains SVG-first, but no longer attempts to instantiate the whole geometry tree at once. At Fit page it renders overview geometry; words become eligible at 2× Fit and glyphs at 6× Fit. Dense word/glyph layers are culled to the OpenSeadragon viewport with overscan, while active search/selection targets remain visible. The 1k/10k/50k benchmark and before/after evidence are documented in [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
 
@@ -114,7 +116,7 @@ npm test
 npm run build
 ```
 
-The renderer benchmark can be run separately against a local Vite server with system Chrome; CI also exposes it as the `Renderer Benchmark` workflow.
+The renderer benchmark can be run separately against a local Vite server with system Chrome; CI also exposes it as the `Renderer Benchmark` workflow. The live IIIF smoke workflow is intentionally separate from the core CI because third-party endpoint outages should not block unrelated local-format changes.
 
 The Vite build is emitted to `dist/` at the repository root. In production, GitHub Actions copies the contents of `dist/` to the root of the Hugging Face Space repository. The Space therefore serves `index.html` directly and has no `app_build_command`.
 
@@ -128,9 +130,9 @@ The Vite build is emitted to `dist/` at the repository root. In production, GitH
 - common ALTO v2/v3/v4 namespaces: parser + semantic validation; additional normative schemas can be pinned incrementally;
 - PAGE XML page content `2019-07-15`: parser + pinned normative XSD validation;
 - other dated PAGE namespaces: parser compatibility notices + semantic validation until their exact XSD is pinned;
-- IIIF Image API 2.x/3.x: provider-neutral info-document normalization, service metadata and canonical full-image request construction;
+- IIIF Image API 2.x/3.x: provider-neutral info-document normalization, service metadata, canonical full-image requests and native OpenSeadragon tiled loading;
 - IIIF Presentation API 2.1/3.x: provider-neutral Manifest/Canvas/painting-image normalization and explicit ambiguity handling;
-- native OpenSeadragon IIIF tiled loading: next rendering tranche, tracked under #7.
+- historical IIIF Image API 1.1 is currently outside the supported image-service scope and is reported explicitly as unsupported rather than guessed.
 
 See `docs/ARCHITECTURE.md`, `docs/ALTO_ADAPTER.md`, `docs/PAGE_XML_ADAPTER.md`, `docs/VALIDATION_MODEL.md`, `docs/SCHEMAS.md`, `docs/IIIF.md`, `docs/PERFORMANCE.md`, `docs/ROADMAP.md` and the ADRs in `docs/adr/`.
 

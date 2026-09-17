@@ -13,6 +13,12 @@ import {
 } from "../renderPolicy";
 import type { RenderLod, RenderWindow } from "../renderPolicy";
 import type { ImageInfo, LayerState, OverlayNode, PageDTO } from "../types";
+import {
+  viewerOpenFailureCode,
+  viewerSourceKind,
+  viewerTileFailureCode,
+  viewerTileSource,
+} from "../viewerTileSource";
 
 const INTERACTIVE_SVG_BUDGET = 6000;
 
@@ -25,6 +31,12 @@ type RenderViewState = {
 type ReadingOrderEntry = {
   reference: string;
   center: { x: number; y: number };
+};
+
+type ViewerLoadDiagnostic = {
+  code: string;
+  message: string;
+  source: string | null;
 };
 
 const DEFAULT_RENDER_VIEW: RenderViewState = {
@@ -176,6 +188,7 @@ export function PageViewer({
   const alignmentRef = useRef(alignment);
   const onViewerOpenRef = useRef(onViewerOpen);
   const [renderView, setRenderView] = useState<RenderViewState>(DEFAULT_RENDER_VIEW);
+  const [viewerDiagnostic, setViewerDiagnostic] = useState<ViewerLoadDiagnostic | null>(null);
   pageRef.current = page;
   alignmentRef.current = alignment;
   onViewerOpenRef.current = onViewerOpen;
@@ -184,9 +197,10 @@ export function PageViewer({
     const element = osdElementRef.current;
     if (!element) return;
 
+    setViewerDiagnostic(null);
     const viewer = OpenSeadragon({
       element,
-      tileSources: { type: "image", url: image.url },
+      tileSources: viewerTileSource(image),
       showNavigationControl: false,
       showNavigator: true,
       animationTime: 0.35,
@@ -252,6 +266,7 @@ export function PageViewer({
     updateRenderViewRef.current = updateRenderView;
 
     const onOpen = () => {
+      setViewerDiagnostic(null);
       syncOverlay();
       updateRenderView();
       focusSearchRef.current();
@@ -265,7 +280,26 @@ export function PageViewer({
       syncOverlay();
       updateRenderView();
     };
+    const onOpenFailed = (event: unknown) => {
+      const failure = event as { message?: string; source?: string };
+      setViewerDiagnostic({
+        code: viewerOpenFailureCode(image),
+        message: failure.message || `OpenSeadragon could not open the ${viewerSourceKind(image) === "iiif_tiles" ? "IIIF tile source" : "image source"}.`,
+        source: failure.source ?? image.tile_source_url ?? image.url,
+      });
+    };
+    const onTileLoadFailed = (event: unknown) => {
+      const failure = event as { message?: string; maxReached?: boolean; tile?: { url?: string } };
+      if (failure.maxReached === false) return;
+      setViewerDiagnostic({
+        code: viewerTileFailureCode(image),
+        message: failure.message || "OpenSeadragon exhausted retries for an image tile.",
+        source: failure.tile?.url ?? image.tile_source_url ?? image.url,
+      });
+    };
     viewer.addHandler("open", onOpen);
+    viewer.addHandler("open-failed", onOpenFailed);
+    viewer.addHandler("tile-load-failed", onTileLoadFailed);
     viewer.addHandler("animation", syncOverlay);
     viewer.addHandler("animation-finish", onAnimationFinish);
     viewer.addHandler("resize", onResize);
@@ -277,7 +311,7 @@ export function PageViewer({
       viewerRef.current = null;
       viewer.destroy();
     };
-  }, [image.height, image.url, image.width]);
+  }, [image.height, image.tile_source_url, image.url, image.width]);
 
   useEffect(() => {
     if (!page || !alignment.canRender) return;
@@ -411,7 +445,11 @@ export function PageViewer({
   const viewHeight = page?.height && page.height > 0 ? page.height : image.height;
 
   return (
-    <section className="viewer-frame" aria-label="Page image and OCR layout viewer">
+    <section
+      className="viewer-frame"
+      aria-label="Page image and OCR layout viewer"
+      data-viewer-source-kind={viewerSourceKind(image)}
+    >
       <div ref={osdElementRef} className="osd-canvas" />
       {page && alignment.canRender && (
         <svg
@@ -484,11 +522,15 @@ export function PageViewer({
           Adaptive detail: {wordsDeferred ? "zoom in to show word boxes" : "zoom closer to show glyph boxes"}.
         </div>
       )}
-      {budgetExceeded && (
+      {viewerDiagnostic ? (
+        <div className="viewer-banner viewer-banner-warning" role="status">
+          <strong>{viewerDiagnostic.code}</strong> · {viewerDiagnostic.message}
+        </div>
+      ) : budgetExceeded ? (
         <div className="viewer-banner viewer-banner-warning">
           Dense view: showing {renderedNodes.length.toLocaleString()} of {visibleNodes.length.toLocaleString()} eligible interactive shapes. Search matches and the active selection are prioritized.
         </div>
-      )}
+      ) : null}
       {!alignment.canRender && <div className="viewer-banner viewer-banner-warning">{alignment.message}</div>}
     </section>
   );
