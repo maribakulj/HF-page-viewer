@@ -1,0 +1,13 @@
+.viewer-banner-detail {
+  left: auto;
+  right: 12px;
+  max-width: min(420px, calc(100% - 24px));
+  color: #d7e6f7;
+  background: rgba(30, 41, 59, .92);
+  border: 1px solid rgba(148, 163, 184, .32);
+  box-shadow: 0 4px 20px rgba(0,0,0,.22);
+}
+
+.viewer-banner-detail + .viewer-banner-warning {
+  bottom: 52px;
+}
