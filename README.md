@@ -35,6 +35,7 @@ The deployed Hugging Face Space is deliberately **static**. The production Space
 - schema diagnostics mapped to `XML.SCHEMA_INVALID` findings with line/XPath evidence when available;
 - validation findings linked back to viewer targets, with evidence/remediation and JSON report export;
 - explicit `XSD not pinned for this version` status for parseable legacy/other namespaces rather than validating them against the wrong schema;
+- reproducible Chrome-headless overlay benchmarks for 1k/10k/50k geometry loads; results and rendering decisions are documented in [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md);
 - frontend tests and TypeScript build gates.
 
 ## Architecture
@@ -67,6 +68,8 @@ The canonical runtime is the TypeScript frontend. The existing Python backend is
 
 Semantic validation is implemented as a pure TypeScript rule registry. Normative XSD validation uses `libxml2-wasm` 0.7.2 in a separate ES-module Worker. Schema files are version-pinned, SHA-256 verified during CI/build, bundled into the static application, and loaded only from the deployed Space's own origin at runtime. See [`docs/SCHEMAS.md`](docs/SCHEMAS.md).
 
+The viewer renderer stays SVG-first because direct interaction and accessibility are useful, but the 1k/10k/50k browser benchmark shows that tens of thousands of simultaneous interactive SVG nodes are too expensive. The measured baseline and adaptive SVG (LOD/culling) decision are documented in [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
+
 ## Local development
 
 The XSD assets are generated from their pinned sources before running the frontend locally:
@@ -87,6 +90,8 @@ npm test
 npm run build
 ```
 
+The renderer benchmark can be run separately against a local Vite server with system Chrome; CI also exposes it as the `Renderer Benchmark` workflow.
+
 The Vite build is emitted to `dist/` at the repository root. In production, GitHub Actions copies the contents of `dist/` to the root of the Hugging Face Space repository. The Space therefore serves `index.html` directly and has no `app_build_command`.
 
 ## Deployment
@@ -101,7 +106,7 @@ The Vite build is emitted to `dist/` at the repository root. In production, GitH
 - other dated PAGE namespaces: parser compatibility notices + semantic validation until their exact XSD is pinned;
 - IIIF Image API 2.x/3.0 and Presentation API 2.1/3.0 planned as browser-side adapters.
 
-See `docs/ARCHITECTURE.md`, `docs/ALTO_ADAPTER.md`, `docs/PAGE_XML_ADAPTER.md`, `docs/VALIDATION_MODEL.md`, `docs/SCHEMAS.md`, `docs/ROADMAP.md` and the ADRs in `docs/adr/`.
+See `docs/ARCHITECTURE.md`, `docs/ALTO_ADAPTER.md`, `docs/PAGE_XML_ADAPTER.md`, `docs/VALIDATION_MODEL.md`, `docs/SCHEMAS.md`, `docs/PERFORMANCE.md`, `docs/ROADMAP.md` and the ADRs in `docs/adr/`.
 
 ## License
 
