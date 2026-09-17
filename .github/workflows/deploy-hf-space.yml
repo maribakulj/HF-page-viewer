@@ -45,6 +45,20 @@ jobs:
       - name: Verify static artifact
         run: test -f dist/index.html
 
+      - name: Assemble clean Space source
+        run: |
+          rm -rf .hf-space-publish
+          mkdir -p .hf-space-publish/frontend
+          cp README.md LICENSE .hf-space-publish/
+          rsync -a \
+            --exclude='node_modules/' \
+            --exclude='dist/' \
+            frontend/ .hf-space-publish/frontend/
+          test ! -e .hf-space-publish/frontend/node_modules
+          test -f .hf-space-publish/frontend/package.json
+          test -f .hf-space-publish/frontend/src/main.tsx
+          echo "Publishing $(find .hf-space-publish -type f | wc -l) source files to Hugging Face."
+
       - name: Install Hugging Face CLI
         run: |
           curl -LsSf https://hf.co/cli/install.sh | bash
@@ -54,10 +68,7 @@ jobs:
         env:
           HF_OIDC_RESOURCE: spaces/Ma-Ri-Ba-Ku/Inspector-ALTO
         run: |
-          hf upload Ma-Ri-Ba-Ku/Inspector-ALTO . . \
+          hf upload Ma-Ri-Ba-Ku/Inspector-ALTO .hf-space-publish . \
             --repo-type=space \
-            --include="README.md" \
-            --include="LICENSE" \
-            --include="frontend/**" \
             --delete="*" \
             --commit-message="Deploy GitHub ${GITHUB_SHA::7}"
