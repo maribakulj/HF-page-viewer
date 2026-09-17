@@ -15,6 +15,8 @@ short_description: Inspect ALTO/PAGE XML against page images and IIIF resources 
 
 HF Page Viewer is a browser-only OCR/layout inspection application. Load a page image and an ALTO or PAGE XML file, inspect the encoded geometry over the raster, browse metadata and structure, and progressively run deterministic validation checks.
 
+Production Space: **[Ma-Ri-Ba-Ku/Inspector-ALTO](https://huggingface.co/spaces/Ma-Ri-Ba-Ku/Inspector-ALTO)**.
+
 The deployed Hugging Face Space is deliberately **static**. Since 2026, creating Docker or ordinary Gradio compute Spaces requires a paid Hugging Face plan, while Static Spaces remain free. The application therefore does not require a server at runtime: image and XML files stay in the browser.
 
 ## Current capabilities
@@ -73,6 +75,10 @@ npm run build
 ```
 
 The Vite build is emitted to `dist/` at the repository root. Hugging Face Static Spaces runs the build command from this README and serves `dist/index.html`.
+
+## Deployment
+
+`main` is automatically publishable to `Ma-Ri-Ba-Ku/Inspector-ALTO` through the keyless OIDC workflow documented in [`docs/HUGGINGFACE_DEPLOYMENT.md`](docs/HUGGINGFACE_DEPLOYMENT.md). The Space remains a static, no-subscription deployment.
 
 ## Standards baseline
 
