@@ -10,12 +10,12 @@ const schemas = [
     name: "ALTO 4.4",
     file: "alto-4-4.xsd",
     url: "https://raw.githubusercontent.com/altoxml/schema/a4e9e0338691ca934397262ef41d4e204af2f7a5/v4/alto-4-4.xsd",
-    sha256: null,
+    sha256: "2d1ba4b0ce268c4ed763f718cfb9b1ab67ac952caf5bcffa5fc314179cb0866b",
   },
   {
-    name: "Library of Congress XLink",
+    name: "Library of Congress METS XLink v2 (OCR-D mirror)",
     file: "xlink.xsd",
-    url: "https://www.loc.gov/standards/xlink/xlink.xsd",
+    url: "https://raw.githubusercontent.com/OCR-D/core/c9272c82b2f4bf62ca7fa6773c00980a7b8e67b3/src/ocrd_validators/xlink.xsd",
     sha256: null,
   },
   {
