@@ -7,11 +7,14 @@ import { IiifSourcePanel } from "./components/IiifSourcePanel";
 import { Inspector } from "./components/Inspector";
 import { LayerControls } from "./components/LayerControls";
 import { PageViewer } from "./components/PageViewer";
+import { QcReportPanel } from "./components/QcReportPanel";
 import { WordSearch } from "./components/WordSearch";
 import { applyIiifValidation } from "./iiifValidation";
 import { assessAlignment, countPageElements, flattenPage } from "./pageModel";
+import { buildQcReport } from "./qcReport";
 import { resolveSchema } from "./schemaRegistry";
 import type { LayerState, PageDocumentDTO } from "./types";
+import { useFileFingerprint } from "./useFileFingerprint";
 import { useIiifSource } from "./useIiifSource";
 import { useLocalImage } from "./useLocalImage";
 import { validateDocument } from "./validation";
@@ -48,6 +51,8 @@ export default function App() {
   const [layers, setLayers] = useState<LayerState>(defaultLayers);
   const [preferredImageSource, setPreferredImageSource] = useState<"local" | "iiif">("local");
   const { image, error: imageError } = useLocalImage(imageFile);
+  const xmlFingerprint = useFileFingerprint(xmlFile);
+  const imageFingerprint = useFileFingerprint(imageFile);
   const {
     state: iiif,
     setInput: setIiifInput,
@@ -182,6 +187,38 @@ export default function App() {
       : schemaValidationReport,
     [document, iiif.inspection, iiif.resolvedService, iiif.selection, pageIndex, schemaValidationReport],
   );
+  const qcReport = useMemo(
+    () => document && validationReport
+      ? buildQcReport({
+        document,
+        validation: validationReport,
+        xmlFingerprint: xmlFingerprint.fingerprint,
+        imageFingerprint: imageFingerprint.fingerprint,
+        activeImage,
+        pageIndex,
+        iiif: {
+          loadedUrl: iiif.loadedUrl,
+          inspection: iiif.inspection,
+          selection: iiif.selection,
+          resolvedService: iiif.resolvedService,
+        },
+      })
+      : null,
+    [
+      activeImage,
+      document,
+      iiif.inspection,
+      iiif.loadedUrl,
+      iiif.resolvedService,
+      iiif.selection,
+      imageFingerprint.fingerprint,
+      pageIndex,
+      validationReport,
+      xmlFingerprint.fingerprint,
+    ],
+  );
+  const fingerprinting = xmlFingerprint.hashing || imageFingerprint.hashing;
+  const fingerprintError = xmlFingerprint.error ?? imageFingerprint.error;
 
   const selectValidationFinding = (finding: ValidationFinding): void => {
     const findingPage = finding.target.page_index;
@@ -262,6 +299,7 @@ export default function App() {
             onNext={() => moveSearch(1)}
           />
           <LayerControls layers={layers} onChange={setLayers} />
+          <QcReportPanel report={qcReport} hashing={fingerprinting} fingerprintError={fingerprintError} />
           <div className="source-summary">
             <span>{activeImage ? `${activeImage.width} × ${activeImage.height}px · ${iiifActive ? "IIIF" : "local"}` : "No viewer image"}</span>
             <span>{page ? `${page.width ?? "?"} × ${page.height ?? "?"} ${page.measurement_unit}` : "No XML page"}</span>

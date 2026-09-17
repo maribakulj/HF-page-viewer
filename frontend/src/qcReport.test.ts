@@ -1,0 +1,101 @@
+import { describe, expect, it } from "vitest";
+
+import { buildQcReport, qcReportFilename } from "./qcReport";
+import type { PageDocumentDTO } from "./types";
+import type { CombinedValidationReport } from "./xsdFindings";
+
+const document: PageDocumentDTO = {
+  source_format: "alto",
+  source_version: "4.4",
+  namespace: "http://www.loc.gov/standards/alto/ns-v4#",
+  pages: [{
+    element_id: "page-1",
+    width: 1000,
+    height: 2000,
+    measurement_unit: "pixel",
+    image_reference: "page.jpg",
+    language: "fra",
+    other_languages: [],
+    rotation: null,
+    regions: [{
+      element_id: "r1",
+      region_type: "text",
+      geometry: { kind: "bbox", x: 0, y: 0, width: 500, height: 500 },
+      text_alternatives: [],
+      lines: [{
+        element_id: "l1",
+        geometry: { kind: "bbox", x: 10, y: 10, width: 400, height: 40 },
+        baseline: null,
+        text_alternatives: [{ text: "hello", confidence: null, kind: "primary" }],
+        words: [{
+          element_id: "w1",
+          geometry: { kind: "bbox", x: 10, y: 10, width: 80, height: 40 },
+          text_alternatives: [{ text: "hello", confidence: null, kind: "primary" }],
+          confidence: 0.9,
+          glyphs: [],
+          source_ref: null,
+        }],
+        source_ref: null,
+      }],
+      regions: [],
+      source_ref: null,
+    }],
+    reading_order: null,
+    source_ref: null,
+  }],
+  metadata: [],
+  processing_steps: [],
+  extensions: [],
+  notices: [],
+  source_attributes: {},
+};
+
+const validation: CombinedValidationReport = {
+  validator_version: "0.4.0",
+  source_format: "alto",
+  source_version: "4.4",
+  page_count: 1,
+  summary: { errors: 0, warnings: 0, info: 0, total: 0 },
+  findings: [],
+  schema_validation: {
+    status: "valid",
+    schema_id: "alto-4.4",
+    schema_label: "ALTO 4.4",
+    diagnostic_count: 0,
+  },
+};
+
+describe("buildQcReport", () => {
+  it("builds a stable machine-readable report with page counts and source fingerprints", () => {
+    const report = buildQcReport({
+      document,
+      validation,
+      xmlFingerprint: {
+        algorithm: "sha256",
+        hex: "abc123",
+        bytes: 12,
+        name: "sample.xml",
+        media_type: "application/xml",
+      },
+      imageFingerprint: null,
+      activeImage: { url: "blob:test", name: "page.jpg", width: 1000, height: 2000, source_kind: "local" },
+      pageIndex: 0,
+      iiif: {
+        loadedUrl: null,
+        inspection: null,
+        selection: { canvasIndex: null, imageIndex: null },
+        resolvedService: null,
+      },
+      generatedAt: "2026-09-17T18:00:00.000Z",
+    });
+
+    expect(report.report_version).toBe("1.0.0");
+    expect(report.generated_at).toBe("2026-09-17T18:00:00.000Z");
+    expect(report.document.pages[0]).toMatchObject({ regions: 1, lines: 1, words: 1, glyphs: 0 });
+    expect(report.document.xml_fingerprint?.hex).toBe("abc123");
+    expect(report.image.source_kind).toBe("local");
+    expect(report.iiif).toBeNull();
+    expect(report.validation.schema_validation.status).toBe("valid");
+    expect(qcReportFilename(report)).toBe("sample.qc.json");
+  });
+});
