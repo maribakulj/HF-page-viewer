@@ -35,10 +35,22 @@ const observationalCases = [
   {
     id: "gallica-image-2",
     input: "https://gallica.bnf.fr/iiif/ark:/12148/btv1b90017179/f15/info.json",
+    inspectRaw: true,
   },
   {
     id: "bnf-openapi-image-3",
     input: "https://openapi.bnf.fr/iiif/image/v3/ark:/12148/bpt6k559839m/f1/info.json",
+    inspectRaw: false,
+  },
+  {
+    id: "gallica-presentation-2",
+    input: "https://gallica.bnf.fr/iiif/ark:/12148/btv1b550076223/manifest.json",
+    inspectRaw: true,
+  },
+  {
+    id: "loc-presentation-2",
+    input: "https://www.loc.gov/item/2017498721/manifest.json",
+    inspectRaw: true,
   },
 ];
 
@@ -56,12 +68,58 @@ async function firstDiagnostic(page) {
   return page.locator(".iiif-diagnostic strong").first().textContent().catch(() => null);
 }
 
+async function firstDiagnosticMessage(page) {
+  return page.locator(".iiif-diagnostic span").first().textContent().catch(() => null);
+}
+
 async function waitForIiifOutcome(page, timeout = 25_000) {
   await page.waitForFunction(() => {
     const version = document.querySelector(".iiif-version-chip")?.textContent?.trim();
     const diagnostic = document.querySelector(".iiif-diagnostic strong")?.textContent?.trim();
     return Boolean(version || diagnostic);
   }, null, { timeout });
+}
+
+async function rawMetadataSummary(page, input) {
+  return page.evaluate(async (url) => {
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        mode: "cors",
+        credentials: "omit",
+        cache: "no-store",
+        redirect: "follow",
+        headers: { Accept: "application/ld+json, application/json;q=0.9, */*;q=0.1" },
+      });
+      const text = await response.text();
+      let json = null;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        // Preserve the body prefix below when a provider returned non-JSON content.
+      }
+      const object = json && typeof json === "object" && !Array.isArray(json) ? json : null;
+      return {
+        status: response.status,
+        ok: response.ok,
+        finalUrl: response.url,
+        contentType: response.headers.get("content-type"),
+        keys: object ? Object.keys(object).slice(0, 30) : [],
+        context: object?.["@context"] ?? null,
+        id: object?.id ?? object?.["@id"] ?? null,
+        type: object?.type ?? object?.["@type"] ?? null,
+        protocol: object?.protocol ?? null,
+        profile: object?.profile ?? null,
+        width: object?.width ?? null,
+        height: object?.height ?? null,
+        bodyPrefix: text.slice(0, 500),
+      };
+    } catch (error) {
+      return {
+        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+      };
+    }
+  }, input);
 }
 
 async function runRequiredCase(browser, testCase) {
@@ -136,6 +194,7 @@ async function runRequiredCase(browser, testCase) {
       input: testCase.input,
       error: serializableError(error),
       diagnostic: await firstDiagnostic(page),
+      diagnosticMessage: await firstDiagnosticMessage(page),
       imageResponses: imageResponses.slice(0, 8),
     };
   } finally {
@@ -147,10 +206,12 @@ async function runObservationalCase(browser, testCase) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   try {
     await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    const raw = testCase.inspectRaw ? await rawMetadataSummary(page, testCase.input) : null;
     await loadSource(page, testCase.input);
     await waitForIiifOutcome(page);
     const version = await page.locator(".iiif-version-chip").textContent().catch(() => null);
     const diagnostic = await firstDiagnostic(page);
+    const diagnosticMessage = await firstDiagnosticMessage(page);
     const viewerKind = await page.locator(".viewer-frame").getAttribute("data-viewer-source-kind").catch(() => null);
     await page.screenshot({ path: resolve(outputDir, `${testCase.id}.png`), fullPage: true });
     return {
@@ -160,7 +221,9 @@ async function runObservationalCase(browser, testCase) {
       input: testCase.input,
       version: version?.trim() ?? null,
       diagnostic,
+      diagnosticMessage,
       viewerSourceKind: viewerKind,
+      raw,
     };
   } catch (error) {
     await page.screenshot({ path: resolve(outputDir, `${testCase.id}-failure.png`), fullPage: true }).catch(() => undefined);
@@ -171,6 +234,8 @@ async function runObservationalCase(browser, testCase) {
       input: testCase.input,
       error: serializableError(error),
       diagnostic: await firstDiagnostic(page),
+      diagnosticMessage: await firstDiagnosticMessage(page),
+      raw: testCase.inspectRaw ? await rawMetadataSummary(page, testCase.input).catch((rawError) => ({ error: String(rawError) })) : null,
     };
   } finally {
     await page.close().catch(() => undefined);
