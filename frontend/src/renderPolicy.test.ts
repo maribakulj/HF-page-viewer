@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { LayerState, OverlayNode } from "./types";
 import {
-  GLYPH_LOD_MIN_IMAGE_ZOOM,
-  WORD_LOD_MIN_IMAGE_ZOOM,
+  GLYPH_LOD_MIN_RELATIVE_ZOOM,
+  WORD_LOD_MIN_RELATIVE_ZOOM,
   geometryIntersectsWindow,
   overscannedWindow,
-  renderLodForImageZoom,
+  renderLodForRelativeZoom,
   shouldRenderNode,
 } from "./renderPolicy";
 
@@ -34,12 +34,18 @@ function node(kind: OverlayNode["kind"], x = 10, y = 10): OverlayNode {
 }
 
 describe("adaptive render policy", () => {
-  it("uses overview, word and glyph LOD at explicit image-zoom thresholds", () => {
-    expect(renderLodForImageZoom(null)).toBe("overview");
-    expect(renderLodForImageZoom(WORD_LOD_MIN_IMAGE_ZOOM - 0.01)).toBe("overview");
-    expect(renderLodForImageZoom(WORD_LOD_MIN_IMAGE_ZOOM)).toBe("words");
-    expect(renderLodForImageZoom(GLYPH_LOD_MIN_IMAGE_ZOOM - 0.01)).toBe("words");
-    expect(renderLodForImageZoom(GLYPH_LOD_MIN_IMAGE_ZOOM)).toBe("glyphs");
+  it("uses overview, word and glyph LOD at zoom levels relative to Fit page", () => {
+    expect(renderLodForRelativeZoom(null)).toBe("overview");
+    expect(renderLodForRelativeZoom(1)).toBe("overview");
+    expect(renderLodForRelativeZoom(WORD_LOD_MIN_RELATIVE_ZOOM - 0.01)).toBe("overview");
+    expect(renderLodForRelativeZoom(WORD_LOD_MIN_RELATIVE_ZOOM)).toBe("words");
+    expect(renderLodForRelativeZoom(GLYPH_LOD_MIN_RELATIVE_ZOOM - 0.01)).toBe("words");
+    expect(renderLodForRelativeZoom(GLYPH_LOD_MIN_RELATIVE_ZOOM)).toBe("glyphs");
+  });
+
+  it("makes the thresholds independent of source image pixel dimensions", () => {
+    expect(renderLodForRelativeZoom(2.75)).toBe("words");
+    expect(renderLodForRelativeZoom(7.5)).toBe("glyphs");
   });
 
   it("keeps regions and lines at overview while deferring words and glyphs", () => {
