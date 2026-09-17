@@ -7,7 +7,8 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc --noEmit -p tsconfig.app.json && vite build",
     "test": "vitest run",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 0.0.0.0",
+    "benchmark:renderer": "node benchmark/run-renderer.mjs"
   },
   "dependencies": {
     "@xmldom/xmldom": "0.9.12",
@@ -21,6 +22,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "playwright-core": "1.63.0",
     "typescript": "^5.8.0",
     "vite": "^7.0.0",
     "vitest": "5.0.1"
