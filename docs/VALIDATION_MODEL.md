@@ -4,18 +4,29 @@
 
 Validation should answer **what is wrong, where, why it matters, and what would fix it**. A red badge saying “invalid” is not useful enough for OCR/layout work.
 
-The production validator is a pure TypeScript browser-core module. It operates on normalized `PageDocument` data, so the same deterministic rules apply to ALTO and PAGE XML after parsing.
+The production validator has two browser-local layers:
+
+1. deterministic semantic rules over normalized `PageDocument` data;
+2. normative XSD validation for explicitly pinned schema versions.
+
+Both layers remain independent of React and no production validation request reaches an application server.
 
 ## Finding contract
 
-The implemented report uses this shape:
+The combined exported report is version `0.2.0` and includes both findings and explicit schema-validation status:
 
 ```json
 {
-  "validator_version": "0.1.0",
+  "validator_version": "0.2.0",
   "source_format": "alto",
   "source_version": "4.4",
   "page_count": 1,
+  "schema_validation": {
+    "status": "invalid",
+    "schema_id": "alto-4.4",
+    "schema_label": "ALTO 4.4",
+    "diagnostic_count": 1
+  },
   "summary": {
     "errors": 1,
     "warnings": 0,
@@ -24,36 +35,39 @@ The implemented report uses this shape:
   },
   "findings": [
     {
-      "rule_id": "GEOM.OUT_OF_BOUNDS",
+      "rule_id": "XML.SCHEMA_INVALID",
       "severity": "error",
-      "message": "word word-42 extends beyond the encoded page bounds.",
+      "message": "The attribute CONTENT is required.",
       "target": {
-        "page_index": 0,
-        "element_id": "word-42",
-        "node_key": "word:/alto/Layout/Page/.../String[42]",
-        "source_path": "/alto/Layout/Page/.../String[42]"
+        "page_index": null,
+        "element_id": null,
+        "node_key": null,
+        "source_path": "/*/*[2]/*/*/*/*"
       },
       "evidence": {
-        "bounds": { "minX": 2410, "minY": 812, "maxX": 2603, "maxY": 856 },
-        "page": { "width": 2500, "height": 3500 }
+        "schema_id": "alto-4.4",
+        "line": 12,
+        "xpath": "/*/*[2]/*/*/*/*"
       },
-      "remediation": "Correct the element coordinates or verify the page dimensions."
+      "remediation": "Correct the XML so it conforms to ALTO 4.4."
     }
   ]
 }
 ```
 
-The `node_key` is deliberately compatible with viewer selection. A finding can therefore navigate to the corresponding region, line, word or glyph without reparsing XML in the React layer.
+The `node_key` used by semantic findings is deliberately compatible with viewer selection. XSD diagnostics come from libxml2 and therefore expose source line/XPath evidence when the schema engine can provide it rather than pretending that a normalized viewer node is always available.
 
 Severities:
 
-- `error`: violates a structural invariant or makes geometry/text linkage unreliable;
+- `error`: violates a structural invariant or normative schema constraint;
 - `warning`: suspicious inconsistency that may be intentional;
 - `info`: useful interoperability or quality note.
 
 No severity depends on an opaque model score.
 
-## Implemented deterministic rules — validator 0.1.0
+## Semantic rule registry
+
+Implemented stable rule IDs:
 
 ### XML / identifiers
 
@@ -69,7 +83,7 @@ No severity depends on an opaque model score.
 - `GEOM.IMAGE_DIMENSION_MISMATCH`
 - `GEOM.NON_PIXEL_UNIT_UNRESOLVED`
 
-Containment currently uses bounding-box containment for both boxes and polygon envelopes. That is intentionally conservative: it can miss a polygon-level containment anomaly, but it does not pretend that envelope containment is exact polygon topology.
+Containment currently uses bounding-box containment for boxes and polygon envelopes. That is intentionally conservative: envelope containment is not presented as exact polygon topology.
 
 ### Text
 
@@ -86,31 +100,82 @@ Containment currently uses bounding-box containment for both boxes and polygon e
 
 ### Validator resilience
 
-- `VALIDATOR.RULE_FAILURE` is emitted if one rule throws unexpectedly. Other rules continue to run.
+- `VALIDATOR.RULE_FAILURE` is emitted if one semantic rule throws unexpectedly. Other rules continue to run.
 
-The rule registry is exported by the browser core and every rule has a stable identifier, default severity, description and deterministic evaluator.
+## Normative XSD validation
+
+Implemented in validator 0.2.0:
+
+- `XML.SCHEMA_INVALID`
+
+Pinned normative baselines:
+
+- ALTO 4.4 with namespace `http://www.loc.gov/standards/alto/ns-v4#`;
+- PAGE XML `2019-07-15` with its dated namespace.
+
+A version/namespace must match the schema registry exactly. Other ALTO/PAGE variants remain parseable and receive semantic validation, but the schema layer reports `unsupported` rather than applying the nearest schema.
+
+### Runtime architecture
+
+- engine: `libxml2-wasm` 0.7.2;
+- execution: dedicated ES-module Web Worker;
+- schema assets: SHA-256 verified during CI/build, then bundled into `dist/schemas/`;
+- runtime schema loading: same-origin only;
+- XSD imports/includes: closed in-memory input provider;
+- no document-supplied network schema resolution;
+- schema/document/validator WASM objects are explicitly disposed after each request.
+
+Parser flags include `XML_PARSE_NONET`, `XML_PARSE_NO_XXE`, `XML_PARSE_NO_SYS_CATALOG` and `XML_PARSE_BIG_LINES`. `RECOVER` and `HUGE` are intentionally not enabled.
+
+See [`SCHEMAS.md`](SCHEMAS.md) for upstream provenance, pinned commits/URLs and SHA-256 values.
+
+### Schema-validation states
+
+The UI and JSON export distinguish:
+
+- `validating`: Worker still running;
+- `valid`: exact pinned XSD completed successfully;
+- `invalid`: schema diagnostics converted to `XML.SCHEMA_INVALID` findings;
+- `unsupported`: no exact schema is pinned for this detected version/namespace;
+- `error`: schema asset loading or validation engine failed.
+
+An `unsupported` or `error` state is never represented as XSD-valid.
 
 ## UI and export
 
 The Inspector exposes a **Validation** tab with:
 
-- error / warning / info counts;
+- semantic + XSD error/warning/info counts;
+- explicit XSD status/schema label;
 - individual findings with source path, remediation and evidence;
-- navigation from a finding to its page/overlay target;
-- JSON export of the complete versioned report.
+- navigation from semantic findings to their page/overlay target;
+- libxml2 line/XPath evidence for XSD findings;
+- JSON export of the complete versioned report including `schema_validation`.
 
-The Overview tab also exposes compact validation counts.
+The Overview/top bar also exposes compact validation status.
 
-## Planned rule families
+## Tests
 
-The following rules remain planned and should be added incrementally rather than treated as already implemented.
+The browser test suite covers:
 
-### XML/schema
+- semantic rule determinism and exact rule IDs;
+- simple in-memory XSD valid/invalid/malformed cases through real `libxml2-wasm`;
+- exact schema-registry matching;
+- representative ALTO 4.4 validated against the pinned official ALTO schema + XLink dependency;
+- representative PAGE 2019-07-15 validated against the pinned official PAGE schema;
+- deliberately invalid ALTO/PAGE variants rejected by the corresponding official XSD;
+- mapping XSD diagnostics into exported `XML.SCHEMA_INVALID` findings.
 
-- `XML.WELL_FORMED` is currently enforced by the parser before normalization rather than emitted as a validator finding;
-- `XML.UNSUPPORTED_ROOT` and `XML.UNSUPPORTED_VERSION` are currently parser-level errors/notices;
-- `XML.SCHEMA_INVALID` requires the pinned XSD/WASM tranche;
-- generic `XML.DANGLING_REFERENCE` remains useful for non-reading-order references such as ALTO linkage attributes.
+The build gate also verifies that all pinned XSD assets are present in the final static `dist/` tree.
+
+## Remaining rule families
+
+### XML/parser
+
+- `XML.WELL_FORMED` remains a parser prerequisite rather than a post-parse finding;
+- `XML.UNSUPPORTED_ROOT` / unsupported format handling remain parser-level errors/notices;
+- generic `XML.DANGLING_REFERENCE` remains useful for non-reading-order references such as ALTO linkage attributes;
+- additional legacy ALTO/PAGE XSDs can be pinned incrementally when representative fixtures justify them.
 
 ### Text
 
@@ -124,7 +189,7 @@ The following rules remain planned and should be added incrementally rather than
 - `ORDER.CYCLE`
 - `ORDER.MISSING_CONTENT`
 
-The normalized reading-order model is currently a tree, so cycle detection requires preserving graph-level source references that can actually express a cycle rather than inventing one after normalization.
+The normalized reading-order model is currently a tree, so cycle detection requires preserving graph-level source relationships that can actually express a cycle rather than inventing one after normalization.
 
 ### Metadata/provenance
 
@@ -144,20 +209,6 @@ The normalized reading-order model is currently a tree, so cycle detection requi
 
 These arrive with the provider-neutral IIIF adapter rather than being hard-coded into the local-file validator.
 
-## Schema validation policy
-
-Normative XSD validation is the next validation tranche, not part of validator 0.1.0.
-
-Schemas must be vendored or otherwise version-pinned inside the project rather than fetched live for every request. Live schema URLs are provenance identifiers, not runtime dependencies.
-
-Target schemas:
-
-- ALTO 4.4;
-- selected commonly encountered ALTO 2.x/3.x/4.x variants required by fixtures;
-- PAGE XML `2019-07-15`.
-
-The preferred implementation path is standards-compliant XSD validation through browser-side WebAssembly (currently `libxml2-wasm` is the leading candidate), isolated in a Web Worker with a controlled virtual filesystem for imports/includes. No document-supplied network schema fetches are permitted.
-
 ## Geometry policy
 
 The validator distinguishes:
@@ -172,6 +223,8 @@ It never “fixes” coordinates silently.
 
 ## Determinism
 
-Given the same normalized input, image context and validator version, the report is stable. Reports deliberately contain no generation timestamp. Tests assert exact rule identifiers and deterministic equality across repeated runs.
+Given the same normalized input, image context, schema bundle and validator version, the report is stable. Reports deliberately contain no generation timestamp.
+
+Schema resources are identified by pinned source + SHA-256. A changed upstream file fails the build-time digest check rather than silently changing validation behaviour.
 
 Any future heuristic or ML-assisted diagnostic must be explicitly marked as advisory and separated from normative/deterministic validation rules.
