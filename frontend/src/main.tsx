@@ -7,6 +7,7 @@ import "./validation.css";
 import "./search.css";
 import "./renderer.css";
 import "./iiif.css";
+import "./qcReport.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
