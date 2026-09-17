@@ -67,7 +67,7 @@ describe("schema registry", () => {
     }).status).toBe("supported");
 
     expect(resolveSchema({
-      source_format: "page",
+      source_format: "page_xml",
       source_version: "2019-07-15",
       namespace: "http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15",
     }).status).toBe("supported");
