@@ -1,6 +1,8 @@
 import type { ValidationFinding, ValidationReport, ValidationSummary } from "./validation";
 import type { BrowserXsdValidation } from "./xsdValidationProtocol";
 
+export const COMBINED_VALIDATOR_VERSION = "0.2.0";
+
 export type SchemaValidationExport = {
   status: Exclude<BrowserXsdValidation["status"], "idle" | "validating"> | "pending";
   schema_id: string | null;
@@ -100,6 +102,7 @@ export function combineValidationReport(base: ValidationReport, xsd: BrowserXsdV
   const findings = [...extra, ...base.findings];
   return {
     ...base,
+    validator_version: COMBINED_VALIDATOR_VERSION,
     summary: summarize(findings),
     findings,
     schema_validation: schemaExport(xsd),
