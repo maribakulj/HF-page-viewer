@@ -45,19 +45,16 @@ jobs:
       - name: Verify static artifact
         run: test -f dist/index.html
 
-      - name: Assemble clean Space source
+      - name: Assemble prebuilt Static Space
         run: |
           rm -rf .hf-space-publish
-          mkdir -p .hf-space-publish/frontend
+          mkdir -p .hf-space-publish
           cp README.md LICENSE .hf-space-publish/
-          rsync -a \
-            --exclude='node_modules/' \
-            --exclude='dist/' \
-            frontend/ .hf-space-publish/frontend/
-          test ! -e .hf-space-publish/frontend/node_modules
-          test -f .hf-space-publish/frontend/package.json
-          test -f .hf-space-publish/frontend/src/main.tsx
-          echo "Publishing $(find .hf-space-publish -type f | wc -l) source files to Hugging Face."
+          cp -a dist/. .hf-space-publish/
+          test -f .hf-space-publish/index.html
+          test -d .hf-space-publish/assets
+          test ! -e .hf-space-publish/frontend
+          echo "Publishing $(find .hf-space-publish -type f | wc -l) prebuilt files to Hugging Face."
 
       - name: Install Hugging Face CLI
         run: |
@@ -71,4 +68,4 @@ jobs:
           hf upload Ma-Ri-Ba-Ku/Inspector-ALTO .hf-space-publish . \
             --repo-type=space \
             --delete="*" \
-            --commit-message="Deploy GitHub ${GITHUB_SHA::7}"
+            --commit-message="Deploy prebuilt GitHub ${GITHUB_SHA::7}"
