@@ -99,7 +99,7 @@ export function PageViewer({
 
     const viewer = OpenSeadragon({
       element,
-      tileSources: { type: "image", url: image.url, buildPyramid: true },
+      tileSources: { type: "image", url: image.url },
       showNavigationControl: false,
       showNavigator: true,
       animationTime: 0.35,
