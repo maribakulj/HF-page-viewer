@@ -1,0 +1,10 @@
+<alto xmlns="http://www.loc.gov/standards/alto/ns-v4#" SCHEMAVERSION="4.4">
+  <Description><MeasurementUnit>pixel</MeasurementUnit></Description>
+  <Styles />
+  <Layout>
+    <Page ID="P1" WIDTH="100" HEIGHT="100">
+      <ReadingOrder><OrderedGroup><ElementRef IDREF="missing-block" /></OrderedGroup></ReadingOrder>
+      <PrintSpace ID="PS1" HPOS="0" VPOS="0" WIDTH="100" HEIGHT="100" IDNEXT="also-missing" />
+    </Page>
+  </Layout>
+</alto>

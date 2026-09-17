@@ -1,3 +1,4 @@
+from .alto import ALTOParseError, parse_alto, parse_alto_bytes
 from .xml import (
     MalformedXMLError,
     ParsedXML,
@@ -13,6 +14,7 @@ from .xml import (
 )
 
 __all__ = [
+    "ALTOParseError",
     "MalformedXMLError",
     "ParsedXML",
     "UnsupportedXMLFormatError",
@@ -22,6 +24,8 @@ __all__ = [
     "XMLSecurityError",
     "XMLTooLargeError",
     "detect_xml_format",
+    "parse_alto",
+    "parse_alto_bytes",
     "parse_xml",
     "split_qname",
 ]

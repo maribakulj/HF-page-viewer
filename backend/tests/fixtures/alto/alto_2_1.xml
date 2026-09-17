@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<alto xmlns="http://www.loc.gov/standards/alto/ns-v2#">
+  <Description>
+    <MeasurementUnit>mm10</MeasurementUnit>
+    <sourceImageInformation><fileName>legacy-v2.tif</fileName></sourceImageInformation>
+    <OCRProcessing ID="OCR1">
+      <ocrProcessingStep>
+        <processingDateTime>2013-01-01T00:00:00</processingDateTime>
+        <processingSoftware><softwareName>Legacy OCR</softwareName></processingSoftware>
+      </ocrProcessingStep>
+    </OCRProcessing>
+  </Description>
+  <Styles />
+  <Layout>
+    <Page ID="P2" WIDTH="2100" HEIGHT="2970">
+      <PrintSpace ID="PS2" HPOS="100" VPOS="100" WIDTH="1900" HEIGHT="2700">
+        <TextBlock ID="TB2" HPOS="100" VPOS="100" WIDTH="1000" HEIGHT="100">
+          <TextLine ID="TL2" HPOS="100" VPOS="100" WIDTH="1000" HEIGHT="50">
+            <String ID="S20" CONTENT="legacy" WC="0.8" HPOS="100" VPOS="100" WIDTH="200" HEIGHT="50" />
+          </TextLine>
+        </TextBlock>
+      </PrintSpace>
+    </Page>
+  </Layout>
+</alto>

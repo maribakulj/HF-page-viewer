@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<alto xmlns="http://www.loc.gov/standards/alto/ns-v3#" SCHEMAVERSION="3.1">
+  <Description><MeasurementUnit>pixel</MeasurementUnit></Description>
+  <Styles />
+  <Layout>
+    <Page ID="P3" WIDTH="500" HEIGHT="700">
+      <PrintSpace ID="PS3" HPOS="0" VPOS="0" WIDTH="500" HEIGHT="700">
+        <TextBlock ID="TB3" HPOS="10" VPOS="10" WIDTH="400" HEIGHT="100">
+          <TextLine ID="TL3" HPOS="10" VPOS="10" WIDTH="400" HEIGHT="30">
+            <String ID="S30" CONTENT="polygon" WC="0.7" HPOS="10" VPOS="10" WIDTH="150" HEIGHT="30">
+              <Shape><Polygon POINTS="10,10 160,10 150,40 10,40" /></Shape>
+            </String>
+          </TextLine>
+        </TextBlock>
+      </PrintSpace>
+    </Page>
+  </Layout>
+</alto>
