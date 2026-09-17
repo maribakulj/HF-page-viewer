@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Inspect and validate ALTO/PAGE XML against document images and IIIF resources."
 requires-python = ">=3.12"
 dependencies = [
+  "defusedxml>=0.7,<1",
   "fastapi>=0.115,<1",
   "uvicorn[standard]>=0.32,<1",
 ]

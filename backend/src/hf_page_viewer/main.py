@@ -8,12 +8,15 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from hf_page_viewer import __version__
+from hf_page_viewer.api.xml import router as xml_router
 
 app = FastAPI(
     title="HF Page Viewer API",
     version=__version__,
     description="Backend API for OCR/layout inspection and validation.",
 )
+
+app.include_router(xml_router)
 
 
 @app.get("/api/health", tags=["system"])
