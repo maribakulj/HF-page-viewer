@@ -40,7 +40,7 @@ context.addEventListener("message", async (event: MessageEvent<XsdWorkerRequest>
       requestId: request.requestId,
       result: {
         status: "error",
-        stage: "schema",
+        stage: "load",
         message: error instanceof Error ? error.message : String(error),
         diagnostics: [],
       },
