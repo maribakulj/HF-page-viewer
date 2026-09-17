@@ -8,7 +8,6 @@ import type { SchemaDescriptor } from "./schemaRegistry";
 import { validateXmlWithXsd } from "./xsdValidationCore";
 
 const encoder = new TextEncoder();
-const schemaDir = resolve(process.cwd(), "public/schemas");
 
 function descriptorFor(sourceFormat: "alto" | "page_xml", sourceVersion: string, namespace: string): SchemaDescriptor {
   const resolution = resolveSchema({ source_format: sourceFormat, source_version: sourceVersion, namespace });
@@ -59,7 +58,7 @@ const PAGE_2019 = `<?xml version="1.0"?>
   </Metadata>
   <Page imageFilename="page.jpg" imageWidth="1000" imageHeight="2000">
     <ReadingOrder><OrderedGroup id="ro"><RegionRefIndexed regionRef="r1" index="0"/></OrderedGroup></ReadingOrder>
-    <TextRegion id="r1" type="paragraph" primaryLanguage="fra">
+    <TextRegion id="r1" type="paragraph" primaryLanguage="French">
       <Coords points="10,20 410,20 410,200 10,200"/>
       <TextLine id="l1">
         <Coords points="20,40 400,40 400,90 20,90"/>
@@ -82,10 +81,10 @@ describe("pinned official schemas", () => {
     expect(result, result.status === "error" ? result.message : JSON.stringify(result.diagnostics)).toMatchObject({ status: "valid" });
   });
 
-  it("rejects ALTO 4.4 missing required page dimensions", () => {
-    const result = validate(ALTO_44.replace(' WIDTH="1000" HEIGHT="2000"', ""), ALTO_DESCRIPTOR);
+  it("rejects ALTO 4.4 when String CONTENT is missing", () => {
+    const result = validate(ALTO_44.replace(' CONTENT="Bonjour"', ""), ALTO_DESCRIPTOR);
     expect(result.status).toBe("invalid");
-    expect(result.diagnostics.some((item) => /WIDTH|HEIGHT/i.test(item.message))).toBe(true);
+    expect(result.diagnostics.some((item) => /CONTENT/i.test(item.message))).toBe(true);
   });
 
   it("accepts representative PAGE XML 2019-07-15", () => {
