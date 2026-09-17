@@ -8,6 +8,16 @@ on:
     paths:
       - "frontend/**"
       - ".github/workflows/renderer-benchmark.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "frontend/src/components/PageViewer.tsx"
+      - "frontend/src/benchmark/**"
+      - "frontend/benchmark/**"
+      - "frontend/benchmark.html"
+      - "frontend/package.json"
+      - ".github/workflows/renderer-benchmark.yml"
 
 permissions:
   contents: read
