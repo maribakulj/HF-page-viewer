@@ -5,10 +5,10 @@ import { parsePageXmlString } from "./pageXmlParser";
 
 const PAGE_2019 = `<?xml version="1.0"?>
 <PcGts xmlns="http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15">
-  <Metadata><Creator>HF Page Viewer test</Creator><Created>2026-09-17T00:00:00Z</Created></Metadata>
+  <Metadata><Creator>HF Page Viewer test</Creator><Created>2026-09-17T00:00:00Z</Created><LastChange>2026-09-17T00:00:00Z</LastChange></Metadata>
   <Page imageFilename="page.jpg" imageWidth="1000" imageHeight="2000">
     <ReadingOrder><OrderedGroup id="ro"><RegionRefIndexed regionRef="r1" index="0"/></OrderedGroup></ReadingOrder>
-    <TextRegion id="r1" type="paragraph" primaryLanguage="fra">
+    <TextRegion id="r1" type="paragraph" primaryLanguage="French">
       <Coords points="10,20 410,20 410,200 10,200"/>
       <TextLine id="l1">
         <Coords points="20,40 400,40 400,90 20,90"/>

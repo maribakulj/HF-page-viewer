@@ -11,11 +11,13 @@
   },
   "dependencies": {
     "@xmldom/xmldom": "0.9.12",
+    "libxml2-wasm": "0.7.2",
     "openseadragon": "6.1.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.0.0",

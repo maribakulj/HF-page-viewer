@@ -30,6 +30,9 @@ jobs:
       - name: Validate Hugging Face Space metadata
         run: node scripts/validate-space-metadata.mjs
 
+      - name: Bundle pinned XML schemas
+        run: node scripts/fetch-schemas.mjs
+
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm install --no-audit --no-fund
@@ -43,7 +46,11 @@ jobs:
         run: npm run build
 
       - name: Verify static artifact
-        run: test -f dist/index.html
+        run: |
+          test -f dist/index.html
+          test -f dist/schemas/alto-4-4.xsd
+          test -f dist/schemas/xlink.xsd
+          test -f dist/schemas/pagecontent-2019-07-15.xsd
 
       - name: Assemble prebuilt Static Space
         run: |
@@ -53,6 +60,7 @@ jobs:
           cp -a dist/. .hf-space-publish/
           test -f .hf-space-publish/index.html
           test -d .hf-space-publish/assets
+          test -f .hf-space-publish/schemas/alto-4-4.xsd
           test ! -e .hf-space-publish/frontend
           echo "Publishing $(find .hf-space-publish -type f | wc -l) prebuilt files to Hugging Face."
 

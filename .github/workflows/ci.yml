@@ -23,6 +23,8 @@ jobs:
           node-version: "22"
       - name: Validate Hugging Face Space metadata
         run: node scripts/validate-space-metadata.mjs
+      - name: Bundle pinned XML schemas
+        run: node scripts/fetch-schemas.mjs
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm install --no-audit --no-fund
@@ -33,7 +35,11 @@ jobs:
         working-directory: frontend
         run: npm run build
       - name: Verify Hugging Face artifact
-        run: test -f dist/index.html
+        run: |
+          test -f dist/index.html
+          test -f dist/schemas/alto-4-4.xsd
+          test -f dist/schemas/xlink.xsd
+          test -f dist/schemas/pagecontent-2019-07-15.xsd
 
   python-reference:
     runs-on: ubuntu-latest

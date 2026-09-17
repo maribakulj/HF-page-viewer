@@ -6,10 +6,14 @@ import { Inspector } from "./components/Inspector";
 import { LayerControls } from "./components/LayerControls";
 import { PageViewer } from "./components/PageViewer";
 import { assessAlignment, countPageElements, flattenPage } from "./pageModel";
+import { resolveSchema } from "./schemaRegistry";
 import type { LayerState, PageDocumentDTO } from "./types";
 import { useLocalImage } from "./useLocalImage";
 import { validateDocument } from "./validation";
 import type { ValidationFinding } from "./validation";
+import { combineValidationReport } from "./xsdFindings";
+import { validateFileWithPinnedXsd } from "./xsdValidationClient";
+import type { BrowserXsdValidation } from "./xsdValidationProtocol";
 
 const defaultLayers: LayerState = {
   regions: true,
@@ -30,6 +34,7 @@ export default function App() {
   const [document, setDocument] = useState<PageDocumentDTO | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
+  const [xsdValidation, setXsdValidation] = useState<BrowserXsdValidation>({ status: "idle" });
   const [pageIndex, setPageIndex] = useState(0);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [layers, setLayers] = useState<LayerState>(defaultLayers);
@@ -38,6 +43,7 @@ export default function App() {
   useEffect(() => {
     setDocument(null);
     setParseError(null);
+    setXsdValidation({ status: "idle" });
     setSelectedKey(null);
     setPageIndex(0);
     if (!xmlFile) return;
@@ -59,14 +65,51 @@ export default function App() {
     return () => controller.abort();
   }, [xmlFile]);
 
+  useEffect(() => {
+    if (!xmlFile || !document) {
+      setXsdValidation({ status: "idle" });
+      return;
+    }
+
+    const resolution = resolveSchema(document);
+    if (resolution.status === "unsupported") {
+      setXsdValidation({ status: "unsupported", reason: resolution.reason });
+      return;
+    }
+
+    const descriptor = resolution.descriptor;
+    const controller = new AbortController();
+    setXsdValidation({ status: "validating", schemaId: descriptor.id, schemaLabel: descriptor.label });
+    validateFileWithPinnedXsd(xmlFile, document, controller.signal)
+      .then((result) => {
+        if (!controller.signal.aborted) setXsdValidation(result);
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
+        setXsdValidation({
+          status: "error",
+          schemaId: descriptor.id,
+          schemaLabel: descriptor.label,
+          stage: "load",
+          message: error instanceof Error ? error.message : String(error),
+          diagnostics: [],
+        });
+      });
+    return () => controller.abort();
+  }, [document, xmlFile]);
+
   const page = document?.pages[pageIndex] ?? null;
   const nodes = useMemo(() => (page ? flattenPage(page) : []), [page]);
   const counts = useMemo(() => (page ? countPageElements(page) : null), [page]);
   const selected = useMemo(() => nodes.find((node) => node.key === selectedKey) ?? null, [nodes, selectedKey]);
   const alignment = useMemo(() => assessAlignment(page, image), [image, page]);
-  const validationReport = useMemo(
+  const semanticValidationReport = useMemo(
     () => document ? validateDocument(document, { image, imagePageIndex: image ? pageIndex : null }) : null,
     [document, image, pageIndex],
+  );
+  const validationReport = useMemo(
+    () => semanticValidationReport ? combineValidationReport(semanticValidationReport, xsdValidation) : null,
+    [semanticValidationReport, xsdValidation],
   );
 
   const selectValidationFinding = (finding: ValidationFinding): void => {
@@ -87,6 +130,8 @@ export default function App() {
         <div className="topbar-statuses">
           {document && <span className="status status-neutral">{formatName(document)} {document.source_version ?? "?"}</span>}
           {validationReport && validationReport.summary.errors > 0 && <span className="status status-error">{validationReport.summary.errors} validation error{validationReport.summary.errors === 1 ? "" : "s"}</span>}
+          {xsdValidation.status === "valid" && <span className="status status-ok">XSD valid</span>}
+          {xsdValidation.status === "validating" && <span className="status status-neutral">XSD validating…</span>}
           <span className="status status-ok">Static · browser-local</span>
         </div>
       </header>
@@ -140,6 +185,7 @@ export default function App() {
           selectedKey={selectedKey}
           alignment={alignment}
           validationReport={validationReport}
+          xsdValidation={xsdValidation}
           onSelect={setSelectedKey}
           onValidationSelect={selectValidationFinding}
         />

@@ -4,6 +4,7 @@ import { formatGeometry } from "../pageModel";
 import type { AlignmentStatus, PageCounts } from "../pageModel";
 import type { ImageInfo, OverlayNode, PageDocumentDTO, PageDTO, RegionDTO, TextLineDTO, WordDTO } from "../types";
 import type { ValidationFinding, ValidationReport } from "../validation";
+import type { BrowserXsdValidation } from "../xsdValidationProtocol";
 
 type InspectorTab = "overview" | "structure" | "validation" | "metadata";
 type TreeNode = { key: string; id: string; label: string; children: TreeNode[] };
@@ -109,6 +110,23 @@ function FindingCard({ finding, onSelect }: { finding: ValidationFinding; onSele
   );
 }
 
+function XsdStatusCard({ validation }: { validation: BrowserXsdValidation }) {
+  if (validation.status === "idle") return null;
+  if (validation.status === "validating") {
+    return <div className="xsd-status xsd-validating"><strong>XSD · {validation.schemaLabel}</strong><p>Validating in a browser Worker…</p></div>;
+  }
+  if (validation.status === "unsupported") {
+    return <div className="xsd-status xsd-unsupported"><strong>XSD not pinned for this version</strong><p>{validation.reason}</p></div>;
+  }
+  if (validation.status === "valid") {
+    return <div className="xsd-status xsd-valid"><strong>XSD valid · {validation.schemaLabel}</strong><p>Normative schema validation completed locally with libxml2-wasm.</p></div>;
+  }
+  if (validation.status === "invalid") {
+    return <div className="xsd-status xsd-invalid"><strong>XSD invalid · {validation.schemaLabel}</strong><p>{validation.diagnostics.length} schema diagnostic{validation.diagnostics.length === 1 ? "" : "s"}; each diagnostic is included below as XML.SCHEMA_INVALID.</p></div>;
+  }
+  return <div className="xsd-status xsd-error"><strong>XSD validator error · {validation.schemaLabel}</strong><p>{validation.stage}: {validation.message}</p></div>;
+}
+
 export function Inspector({
   document,
   page,
@@ -118,6 +136,7 @@ export function Inspector({
   selectedKey,
   alignment,
   validationReport,
+  xsdValidation,
   onSelect,
   onValidationSelect,
 }: {
@@ -129,6 +148,7 @@ export function Inspector({
   selectedKey: string | null;
   alignment: AlignmentStatus;
   validationReport: ValidationReport | null;
+  xsdValidation: BrowserXsdValidation;
   onSelect: (key: string) => void;
   onValidationSelect: (finding: ValidationFinding) => void;
 }) {
@@ -169,13 +189,14 @@ export function Inspector({
               <div><strong>Validator {validationReport.validator_version}</strong><p>{validationReport.summary.total} deterministic finding{validationReport.summary.total === 1 ? "" : "s"}</p></div>
               <button type="button" onClick={() => downloadValidationReport(validationReport)}>Export JSON</button>
             </div>
+            <XsdStatusCard validation={xsdValidation} />
             <div className="validation-summary-grid">
               <div><strong>{validationReport.summary.errors}</strong><span>errors</span></div>
               <div><strong>{validationReport.summary.warnings}</strong><span>warnings</span></div>
               <div><strong>{validationReport.summary.info}</strong><span>info</span></div>
             </div>
             {validationReport.findings.length ? validationReport.findings.map((finding, index) => <FindingCard key={`${finding.rule_id}:${finding.target.source_path ?? finding.target.element_id ?? index}:${index}`} finding={finding} onSelect={onValidationSelect} />) : <p className="validation-clean">No deterministic findings from the currently implemented rules.</p>}
-            <p className="muted validation-scope-note">This is semantic/browser validation. Normative XSD validation is the next validation tranche.</p>
+            <p className="muted validation-scope-note">Semantic rules run for every parsed document. Normative XSD currently runs only for the explicitly pinned ALTO 4.4 and PAGE XML 2019-07-15 schemas.</p>
           </div>
         ) : <p className="muted">Load ALTO or PAGE XML to run validation.</p>)}
 
