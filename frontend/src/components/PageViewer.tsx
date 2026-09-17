@@ -1,20 +1,31 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import OpenSeadragon from "openseadragon";
 
 import { flattenReadingOrderRefs, geometryCenter } from "../pageModel";
 import type { AlignmentStatus } from "../pageModel";
-import type { GeometryDTO, ImageInfo, LayerState, OverlayNode, PageDTO } from "../types";
+import {
+  geometryBounds,
+  geometryIntersectsWindow,
+  overscannedWindow,
+  renderLodForImageZoom,
+  shouldRenderNode,
+} from "../renderPolicy";
+import type { RenderLod, RenderWindow } from "../renderPolicy";
+import type { ImageInfo, LayerState, OverlayNode, PageDTO } from "../types";
 
-const INTERACTIVE_SVG_BUDGET = 18000;
+const INTERACTIVE_SVG_BUDGET = 6000;
 
-type GeometryBounds = { minX: number; minY: number; maxX: number; maxY: number };
+type RenderViewState = {
+  lod: RenderLod;
+  imageZoom: number | null;
+  window: RenderWindow | null;
+};
 
-function isLayerVisible(node: OverlayNode, layers: LayerState): boolean {
-  if (node.kind === "region") return layers.regions;
-  if (node.kind === "line") return layers.lines;
-  if (node.kind === "word") return layers.words;
-  return layers.glyphs;
-}
+const DEFAULT_RENDER_VIEW: RenderViewState = {
+  lod: "overview",
+  imageZoom: null,
+  window: null,
+};
 
 function nodeTitle(node: OverlayNode): string {
   const text = node.text ? ` · ${node.text}` : "";
@@ -22,20 +33,21 @@ function nodeTitle(node: OverlayNode): string {
   return `${node.kind} ${node.elementId}${text}${confidence}`;
 }
 
-function geometryBounds(geometry: GeometryDTO | null): GeometryBounds | null {
-  if (!geometry) return null;
-  if (geometry.kind === "bbox") {
-    return {
-      minX: Math.min(geometry.x, geometry.x + geometry.width),
-      minY: Math.min(geometry.y, geometry.y + geometry.height),
-      maxX: Math.max(geometry.x, geometry.x + geometry.width),
-      maxY: Math.max(geometry.y, geometry.y + geometry.height),
-    };
-  }
-  if (!geometry.points.length) return null;
-  const xs = geometry.points.map((point) => point.x);
-  const ys = geometry.points.map((point) => point.y);
-  return { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) };
+function renderWindowEqual(left: RenderWindow | null, right: RenderWindow | null): boolean {
+  if (left === right) return true;
+  if (!left || !right) return false;
+  return Math.abs(left.minX - right.minX) < 0.5
+    && Math.abs(left.minY - right.minY) < 0.5
+    && Math.abs(left.maxX - right.maxX) < 0.5
+    && Math.abs(left.maxY - right.maxY) < 0.5;
+}
+
+function renderViewEqual(left: RenderViewState, right: RenderViewState): boolean {
+  return left.lod === right.lod
+    && (left.imageZoom == null || right.imageZoom == null
+      ? left.imageZoom === right.imageZoom
+      : Math.abs(left.imageZoom - right.imageZoom) < 0.005)
+    && renderWindowEqual(left.window, right.window);
 }
 
 function GeometryShape({
@@ -112,6 +124,7 @@ export function PageViewer({
   focusKey,
   alignment,
   interactiveBudget = INTERACTIVE_SVG_BUDGET,
+  renderPolicy = "adaptive",
   onViewerOpen,
   onSelect,
 }: {
@@ -124,6 +137,7 @@ export function PageViewer({
   focusKey: string | null;
   alignment: AlignmentStatus;
   interactiveBudget?: number;
+  renderPolicy?: "adaptive" | "all";
   onViewerOpen?: () => void;
   onSelect: (key: string) => void;
 }) {
@@ -132,6 +146,14 @@ export function PageViewer({
   const viewerRef = useRef<OpenSeadragon.Viewer | null>(null);
   const syncOverlayRef = useRef<() => void>(() => undefined);
   const focusSearchRef = useRef<() => void>(() => undefined);
+  const updateRenderViewRef = useRef<() => void>(() => undefined);
+  const pageRef = useRef<PageDTO | null>(page);
+  const alignmentRef = useRef(alignment);
+  const onViewerOpenRef = useRef(onViewerOpen);
+  const [renderView, setRenderView] = useState<RenderViewState>(DEFAULT_RENDER_VIEW);
+  pageRef.current = page;
+  alignmentRef.current = alignment;
+  onViewerOpenRef.current = onViewerOpen;
 
   useEffect(() => {
     const element = osdElementRef.current;
@@ -166,27 +188,76 @@ export function PageViewer({
     };
     syncOverlayRef.current = syncOverlay;
 
+    const updateRenderView = () => {
+      const currentPage = pageRef.current;
+      const currentAlignment = alignmentRef.current;
+      const item = viewer.world.getItemAt(0);
+      if (!item || !currentPage || !currentAlignment.canRender || !currentPage.width || !currentPage.height) {
+        setRenderView((current) => renderViewEqual(current, DEFAULT_RENDER_VIEW) ? current : DEFAULT_RENDER_VIEW);
+        return;
+      }
+
+      const viewportBounds = viewer.viewport.getBounds(true);
+      const imageBounds = item.viewportToImageRectangle(
+        viewportBounds.x,
+        viewportBounds.y,
+        viewportBounds.width,
+        viewportBounds.height,
+        true,
+      );
+      const imageZoom = item.viewportToImageZoom(viewer.viewport.getZoom(true));
+      const next: RenderViewState = {
+        lod: renderLodForImageZoom(imageZoom),
+        imageZoom,
+        window: overscannedWindow({
+          x: imageBounds.x,
+          y: imageBounds.y,
+          width: imageBounds.width,
+          height: imageBounds.height,
+          scaleX: currentPage.width / image.width,
+          scaleY: currentPage.height / image.height,
+          pageWidth: currentPage.width,
+          pageHeight: currentPage.height,
+        }),
+      };
+      setRenderView((current) => renderViewEqual(current, next) ? current : next);
+    };
+    updateRenderViewRef.current = updateRenderView;
+
     const onOpen = () => {
       syncOverlay();
+      updateRenderView();
       focusSearchRef.current();
-      onViewerOpen?.();
+      onViewerOpenRef.current?.();
+    };
+    const onAnimationFinish = () => {
+      syncOverlay();
+      updateRenderView();
+    };
+    const onResize = () => {
+      syncOverlay();
+      updateRenderView();
     };
     viewer.addHandler("open", onOpen);
     viewer.addHandler("animation", syncOverlay);
-    viewer.addHandler("animation-finish", syncOverlay);
-    viewer.addHandler("resize", syncOverlay);
+    viewer.addHandler("animation-finish", onAnimationFinish);
+    viewer.addHandler("resize", onResize);
 
     return () => {
       syncOverlayRef.current = () => undefined;
       focusSearchRef.current = () => undefined;
+      updateRenderViewRef.current = () => undefined;
       viewerRef.current = null;
       viewer.destroy();
     };
-  }, [image.height, image.url, image.width, onViewerOpen]);
+  }, [image.height, image.url, image.width]);
 
   useEffect(() => {
     if (!page || !alignment.canRender) return;
-    const frame = requestAnimationFrame(() => syncOverlayRef.current());
+    const frame = requestAnimationFrame(() => {
+      syncOverlayRef.current();
+      updateRenderViewRef.current();
+    });
     return () => cancelAnimationFrame(frame);
   }, [alignment.canRender, page]);
 
@@ -225,12 +296,17 @@ export function PageViewer({
   }, [alignment.canRender, focusKey, image.height, image.width, nodes, page]);
 
   const safeInteractiveBudget = Math.max(1, Math.floor(interactiveBudget));
+  const effectiveLod: RenderLod = renderPolicy === "all" ? "glyphs" : renderView.lod;
+  const effectiveWindow = renderPolicy === "all" ? null : renderView.window;
   const visibleNodes = useMemo(
-    () => nodes.filter((node) => (
-      node.geometry !== null
-      && (isLayerVisible(node, layers) || highlightedKeys.has(node.key) || node.key === focusKey)
-    )),
-    [focusKey, highlightedKeys, layers, nodes],
+    () => nodes.filter((node) => shouldRenderNode({
+      node,
+      layers,
+      lod: effectiveLod,
+      window: effectiveWindow,
+      forced: highlightedKeys.has(node.key) || node.key === focusKey || node.key === selectedKey,
+    })),
+    [effectiveLod, effectiveWindow, focusKey, highlightedKeys, layers, nodes, selectedKey],
   );
   const renderedNodes = useMemo(() => {
     if (visibleNodes.length <= safeInteractiveBudget) return visibleNodes;
@@ -256,6 +332,13 @@ export function PageViewer({
   }, [focusKey, highlightedKeys, safeInteractiveBudget, selectedKey, visibleNodes]);
   const budgetExceeded = visibleNodes.length > renderedNodes.length;
 
+  const renderedBaselines = useMemo(() => {
+    if (!layers.baselines) return [];
+    return nodes
+      .filter((node) => node.kind === "line" && node.baseline && geometryIntersectsWindow(node.geometry, effectiveWindow))
+      .slice(0, safeInteractiveBudget);
+  }, [effectiveWindow, layers.baselines, nodes, safeInteractiveBudget]);
+
   const nodeById = useMemo(() => {
     const map = new Map<string, OverlayNode>();
     for (const node of nodes) {
@@ -272,8 +355,19 @@ export function PageViewer({
         const center = geometryCenter(node?.geometry ?? null);
         return center ? { reference, center } : null;
       })
-      .filter((entry): entry is { reference: string; center: { x: number; y: number } } => entry !== null);
-  }, [layers.readingOrder, nodeById, page]);
+      .filter((entry): entry is { reference: string; center: { x: number; y: number } } => entry !== null)
+      .filter((entry) => !effectiveWindow || (
+        entry.center.x >= effectiveWindow.minX
+        && entry.center.x <= effectiveWindow.maxX
+        && entry.center.y >= effectiveWindow.minY
+        && entry.center.y <= effectiveWindow.maxY
+      ));
+  }, [effectiveWindow, layers.readingOrder, nodeById, page]);
+
+  const hasWords = useMemo(() => nodes.some((node) => node.kind === "word"), [nodes]);
+  const hasGlyphs = useMemo(() => nodes.some((node) => node.kind === "glyph"), [nodes]);
+  const wordsDeferred = renderPolicy === "adaptive" && layers.words && hasWords && renderView.lod === "overview";
+  const glyphsDeferred = renderPolicy === "adaptive" && layers.glyphs && hasGlyphs && renderView.lod !== "glyphs";
 
   const viewWidth = page?.width && page.width > 0 ? page.width : image.width;
   const viewHeight = page?.height && page.height > 0 ? page.height : image.height;
@@ -288,6 +382,8 @@ export function PageViewer({
           viewBox={`0 0 ${viewWidth} ${viewHeight}`}
           preserveAspectRatio="none"
           aria-label="OCR layout overlay"
+          data-render-lod={effectiveLod}
+          data-rendered-shapes={renderedNodes.length}
         >
           {renderedNodes.map((node) => (
             <GeometryShape
@@ -299,17 +395,14 @@ export function PageViewer({
               onSelect={onSelect}
             />
           ))}
-          {layers.baselines &&
-            nodes
-              .filter((node) => node.kind === "line" && node.baseline)
-              .map((node) => (
-                <polyline
-                  key={`${node.key}:baseline`}
-                  className="overlay-baseline"
-                  points={node.baseline!.points.map((point) => `${point.x},${point.y}`).join(" ")}
-                  vectorEffect="non-scaling-stroke"
-                />
-              ))}
+          {renderedBaselines.map((node) => (
+            <polyline
+              key={`${node.key}:baseline`}
+              className="overlay-baseline"
+              points={node.baseline!.points.map((point) => `${point.x},${point.y}`).join(" ")}
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
           {layers.readingOrder &&
             readingOrder.slice(1).map((entry, index) => {
               const previous = readingOrder[index];
@@ -349,9 +442,14 @@ export function PageViewer({
         </button>
       </div>
 
+      {(wordsDeferred || glyphsDeferred) && (
+        <div className="viewer-banner viewer-banner-detail">
+          Adaptive detail: {wordsDeferred ? "zoom in to show word boxes" : "zoom closer to show glyph boxes"}.
+        </div>
+      )}
       {budgetExceeded && (
         <div className="viewer-banner viewer-banner-warning">
-          Dense page: showing {renderedNodes.length.toLocaleString()} of {visibleNodes.length.toLocaleString()} interactive shapes. Search matches and the active selection are prioritized.
+          Dense view: showing {renderedNodes.length.toLocaleString()} of {visibleNodes.length.toLocaleString()} eligible interactive shapes. Search matches and the active selection are prioritized.
         </div>
       )}
       {!alignment.canRender && <div className="viewer-banner viewer-banner-warning">{alignment.message}</div>}
