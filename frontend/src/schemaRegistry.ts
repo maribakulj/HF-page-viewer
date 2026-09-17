@@ -35,7 +35,7 @@ const ALTO_44: SchemaDescriptor = {
 const PAGE_2019: SchemaDescriptor = {
   id: "page-2019-07-15",
   label: "PAGE XML 2019-07-15",
-  sourceFormat: "page",
+  sourceFormat: "page_xml",
   sourceVersion: "2019-07-15",
   namespace: "http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15",
   entryVirtualUrl: "https://schemas.hf-page-viewer.invalid/pagecontent-2019-07-15.xsd",
@@ -62,9 +62,4 @@ export function resolveSchema(document: Pick<PageDocumentDTO, "source_format" | 
     status: "unsupported",
     reason: `No pinned XSD is registered for ${format} ${document.source_version ?? "unknown version"} (${document.namespace ?? "no namespace"}).`,
   };
-}
-
-export function schemaAssetUrl(assetPath: string, baseUrl = import.meta.env.BASE_URL): string {
-  const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-  return `${normalizedBase}${assetPath.replace(/^\//, "")}`;
 }
