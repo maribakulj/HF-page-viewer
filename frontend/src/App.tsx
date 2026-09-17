@@ -3,13 +3,16 @@ import { useEffect, useMemo, useState } from "react";
 import { applyAdditionalValidation } from "./additionalValidation";
 import { parseDocumentFile } from "./api";
 import { FileDrop } from "./components/FileDrop";
+import { IiifSourcePanel } from "./components/IiifSourcePanel";
 import { Inspector } from "./components/Inspector";
 import { LayerControls } from "./components/LayerControls";
 import { PageViewer } from "./components/PageViewer";
 import { WordSearch } from "./components/WordSearch";
+import { applyIiifValidation } from "./iiifValidation";
 import { assessAlignment, countPageElements, flattenPage } from "./pageModel";
 import { resolveSchema } from "./schemaRegistry";
 import type { LayerState, PageDocumentDTO } from "./types";
+import { useIiifSource } from "./useIiifSource";
 import { useLocalImage } from "./useLocalImage";
 import { validateDocument } from "./validation";
 import type { ValidationFinding } from "./validation";
@@ -43,7 +46,16 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const [layers, setLayers] = useState<LayerState>(defaultLayers);
+  const [preferredImageSource, setPreferredImageSource] = useState<"local" | "iiif">("local");
   const { image, error: imageError } = useLocalImage(imageFile);
+  const {
+    state: iiif,
+    setInput: setIiifInput,
+    load: loadIiif,
+    clear: clearIiif,
+    selectCanvas: selectIiifCanvas,
+    selectImage: selectIiifImage,
+  } = useIiifSource();
 
   useEffect(() => {
     setDocument(null);
@@ -109,11 +121,25 @@ export default function App() {
     setActiveSearchIndex(0);
   }, [document, searchQuery]);
 
+  useEffect(() => {
+    if (image) setPreferredImageSource("local");
+  }, [image]);
+
+  useEffect(() => {
+    if (!image && iiif.resolved?.image) setPreferredImageSource("iiif");
+  }, [iiif.resolved?.image, image]);
+
+  const iiifImage = iiif.resolved?.image ?? null;
+  const activeImage = preferredImageSource === "iiif"
+    ? iiifImage ?? image
+    : image ?? iiifImage;
+  const iiifActive = Boolean(activeImage && iiifImage && activeImage === iiifImage);
+
   const page = document?.pages[pageIndex] ?? null;
   const nodes = useMemo(() => (page ? flattenPage(page) : []), [page]);
   const counts = useMemo(() => (page ? countPageElements(page) : null), [page]);
   const selected = useMemo(() => nodes.find((node) => node.key === selectedKey) ?? null, [nodes, selectedKey]);
-  const alignment = useMemo(() => assessAlignment(page, image), [image, page]);
+  const alignment = useMemo(() => assessAlignment(page, activeImage), [activeImage, page]);
   const searchMatches = useMemo(
     () => document ? searchDocumentWords(document, searchQuery) : [],
     [document, searchQuery],
@@ -139,9 +165,22 @@ export default function App() {
     ) : null,
     [document, image, pageIndex],
   );
-  const validationReport = useMemo(
+  const schemaValidationReport = useMemo(
     () => semanticValidationReport ? combineValidationReport(semanticValidationReport, xsdValidation) : null,
     [semanticValidationReport, xsdValidation],
+  );
+  const validationReport = useMemo(
+    () => document && schemaValidationReport
+      ? applyIiifValidation(
+        schemaValidationReport,
+        document,
+        pageIndex,
+        iiif.inspection,
+        iiif.selection,
+        iiif.resolvedService,
+      )
+      : schemaValidationReport,
+    [document, iiif.inspection, iiif.resolvedService, iiif.selection, pageIndex, schemaValidationReport],
   );
 
   const selectValidationFinding = (finding: ValidationFinding): void => {
@@ -166,10 +205,11 @@ export default function App() {
         </div>
         <div className="topbar-statuses">
           {document && <span className="status status-neutral">{formatName(document)} {document.source_version ?? "?"}</span>}
+          {iiif.inspection && <span className="status status-neutral">IIIF {iiif.inspection.version}</span>}
           {validationReport && validationReport.summary.errors > 0 && <span className="status status-error">{validationReport.summary.errors} validation error{validationReport.summary.errors === 1 ? "" : "s"}</span>}
           {xsdValidation.status === "valid" && <span className="status status-ok">XSD valid</span>}
           {xsdValidation.status === "validating" && <span className="status status-neutral">XSD validating…</span>}
-          <span className="status status-ok">Static · browser-local</span>
+          <span className="status status-ok">Static · browser-side</span>
         </div>
       </header>
 
@@ -177,10 +217,26 @@ export default function App() {
         <aside className="panel source-panel">
           <div>
             <h2>Sources</h2>
-            <p className="panel-intro">Drop one page image and its ALTO or PAGE XML. Neither file leaves your browser.</p>
+            <p className="panel-intro">Local image/XML stay in your browser. IIIF metadata is fetched directly by your browser when you provide a public URL.</p>
           </div>
           <FileDrop title="Page image" description="JPEG, PNG, WebP, TIFF if your browser supports it" accept="image/*" file={imageFile} onFile={setImageFile} />
           <FileDrop title="OCR/layout XML" description="ALTO v2–v4 or PAGE XML" accept=".xml,application/xml,text/xml" file={xmlFile} onFile={setXmlFile} />
+          <IiifSourcePanel
+            state={iiif}
+            active={iiifActive}
+            onInputChange={setIiifInput}
+            onLoad={() => { void loadIiif(); }}
+            onClear={() => {
+              clearIiif();
+              if (image) setPreferredImageSource("local");
+            }}
+            onCanvasChange={selectIiifCanvas}
+            onImageChange={selectIiifImage}
+            onUseViewer={() => setPreferredImageSource("iiif")}
+          />
+          {image && iiifImage && iiifActive && (
+            <button type="button" className="source-image-switch" onClick={() => setPreferredImageSource("local")}>Use local image in viewer</button>
+          )}
           {parsing && <p className="inline-state">Parsing XML locally…</p>}
           {parseError && <p className="inline-error">{parseError}</p>}
           {imageError && <p className="inline-error">{imageError}</p>}
@@ -207,17 +263,17 @@ export default function App() {
           />
           <LayerControls layers={layers} onChange={setLayers} />
           <div className="source-summary">
-            <span>{image ? `${image.width} × ${image.height}px` : "No image"}</span>
+            <span>{activeImage ? `${activeImage.width} × ${activeImage.height}px · ${iiifActive ? "IIIF" : "local"}` : "No viewer image"}</span>
             <span>{page ? `${page.width ?? "?"} × ${page.height ?? "?"} ${page.measurement_unit}` : "No XML page"}</span>
           </div>
         </aside>
 
         <section className="viewer-column">
-          {image ? (
+          {activeImage ? (
             <>
               <div className={`alignment-strip alignment-${alignment.kind}`}>{alignment.message}</div>
               <PageViewer
-                image={image}
+                image={activeImage}
                 page={page}
                 nodes={nodes}
                 layers={layers}
@@ -229,14 +285,14 @@ export default function App() {
               />
             </>
           ) : (
-            <div className="viewer-empty"><div><p className="eyebrow">Local workflow</p><h2>Load a page image</h2><p>The raster and XML stay local. ALTO and PAGE parsing run entirely in your browser.</p></div></div>
+            <div className="viewer-empty"><div><p className="eyebrow">Browser-side workflow</p><h2>Load a page image or IIIF source</h2><p>Local files stay in your browser. Public IIIF resources are fetched directly from their provider without an application proxy.</p></div></div>
           )}
         </section>
 
         <Inspector
           document={document}
           page={page}
-          image={image}
+          image={activeImage}
           counts={counts}
           selected={selected}
           selectedKey={selectedKey}

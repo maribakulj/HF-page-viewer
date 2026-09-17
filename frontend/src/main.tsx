@@ -6,6 +6,7 @@ import "./styles.css";
 import "./validation.css";
 import "./search.css";
 import "./renderer.css";
+import "./iiif.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
