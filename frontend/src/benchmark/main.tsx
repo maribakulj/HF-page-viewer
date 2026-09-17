@@ -1,4 +1,4 @@
-import { StrictMode, useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { PageViewer } from "../components/PageViewer";
@@ -228,7 +228,5 @@ window.__HF_PAGE_VIEWER_BENCHMARK__ = {
 };
 
 createRoot(document.getElementById("benchmark-root")!).render(
-  <StrictMode>
-    <BenchmarkApp nodes={nodes} config={config} generationMs={generationMs} renderStart={renderStart} />
-  </StrictMode>,
+  <BenchmarkApp nodes={nodes} config={config} generationMs={generationMs} renderStart={renderStart} />,
 );
