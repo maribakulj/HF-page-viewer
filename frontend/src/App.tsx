@@ -9,12 +9,6 @@ import { assessAlignment, countPageElements, flattenPage } from "./pageModel";
 import type { LayerState, PageDocumentDTO } from "./types";
 import { useLocalImage } from "./useLocalImage";
 
-type Health = {
-  status: string;
-  application: string;
-  version: string;
-};
-
 const defaultLayers: LayerState = {
   regions: true,
   lines: true,
@@ -25,7 +19,6 @@ const defaultLayers: LayerState = {
 };
 
 export default function App() {
-  const [health, setHealth] = useState<Health | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [altoFile, setAltoFile] = useState<File | null>(null);
   const [document, setDocument] = useState<PageDocumentDTO | null>(null);
@@ -35,16 +28,6 @@ export default function App() {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [layers, setLayers] = useState<LayerState>(defaultLayers);
   const { image, error: imageError } = useLocalImage(imageFile);
-
-  useEffect(() => {
-    fetch("/api/health")
-      .then((response) => {
-        if (!response.ok) throw new Error("Health endpoint unavailable");
-        return response.json() as Promise<Health>;
-      })
-      .then(setHealth)
-      .catch(() => setHealth(null));
-  }, []);
 
   useEffect(() => {
     setDocument(null);
@@ -67,17 +50,13 @@ export default function App() {
       .finally(() => {
         if (!controller.signal.aborted) setParsing(false);
       });
-
     return () => controller.abort();
   }, [altoFile]);
 
   const page = document?.pages[pageIndex] ?? null;
   const nodes = useMemo(() => (page ? flattenPage(page) : []), [page]);
   const counts = useMemo(() => (page ? countPageElements(page) : null), [page]);
-  const selected = useMemo(
-    () => nodes.find((node) => node.key === selectedKey) ?? null,
-    [nodes, selectedKey],
-  );
+  const selected = useMemo(() => nodes.find((node) => node.key === selectedKey) ?? null, [nodes, selectedKey]);
   const alignment = useMemo(() => assessAlignment(page, image), [image, page]);
 
   return (
@@ -89,9 +68,7 @@ export default function App() {
         </div>
         <div className="topbar-statuses">
           {document && <span className="status status-neutral">ALTO {document.source_version ?? "?"}</span>}
-          <span className={health ? "status status-ok" : "status"}>
-            {health ? `API ${health.version}` : "API unavailable"}
-          </span>
+          <span className="status status-ok">Static · browser-local</span>
         </div>
       </header>
 
@@ -99,25 +76,11 @@ export default function App() {
         <aside className="panel source-panel">
           <div>
             <h2>Sources</h2>
-            <p className="panel-intro">Drop one page image and its ALTO XML. The image stays in your browser.</p>
+            <p className="panel-intro">Drop one page image and its ALTO XML. Neither file leaves your browser.</p>
           </div>
-
-          <FileDrop
-            title="Page image"
-            description="JPEG, PNG, WebP, TIFF if your browser supports it"
-            accept="image/*"
-            file={imageFile}
-            onFile={setImageFile}
-          />
-          <FileDrop
-            title="ALTO XML"
-            description="ALTO v2, v3 or v4"
-            accept=".xml,application/xml,text/xml"
-            file={altoFile}
-            onFile={setAltoFile}
-          />
-
-          {parsing && <p className="inline-state">Parsing ALTO…</p>}
+          <FileDrop title="Page image" description="JPEG, PNG, WebP, TIFF if your browser supports it" accept="image/*" file={imageFile} onFile={setImageFile} />
+          <FileDrop title="ALTO XML" description="ALTO v2, v3 or v4" accept=".xml,application/xml,text/xml" file={altoFile} onFile={setAltoFile} />
+          {parsing && <p className="inline-state">Parsing ALTO locally…</p>}
           {parseError && <p className="inline-error">{parseError}</p>}
           {imageError && <p className="inline-error">{imageError}</p>}
 
@@ -126,16 +89,12 @@ export default function App() {
               XML page
               <select value={pageIndex} onChange={(event) => setPageIndex(Number(event.target.value))}>
                 {document.pages.map((candidate, index) => (
-                  <option key={candidate.source_ref?.path ?? candidate.element_id} value={index}>
-                    {index + 1} · {candidate.element_id}
-                  </option>
+                  <option key={candidate.source_ref?.path ?? candidate.element_id} value={index}>{index + 1} · {candidate.element_id}</option>
                 ))}
               </select>
             </label>
           )}
-
           <LayerControls layers={layers} onChange={setLayers} />
-
           <div className="source-summary">
             <span>{image ? `${image.width} × ${image.height}px` : "No image"}</span>
             <span>{page ? `${page.width ?? "?"} × ${page.height ?? "?"} ${page.measurement_unit}` : "No ALTO page"}</span>
@@ -146,37 +105,14 @@ export default function App() {
           {image ? (
             <>
               <div className={`alignment-strip alignment-${alignment.kind}`}>{alignment.message}</div>
-              <PageViewer
-                image={image}
-                page={page}
-                nodes={nodes}
-                layers={layers}
-                selectedKey={selectedKey}
-                alignment={alignment}
-                onSelect={setSelectedKey}
-              />
+              <PageViewer image={image} page={page} nodes={nodes} layers={layers} selectedKey={selectedKey} alignment={alignment} onSelect={setSelectedKey} />
             </>
           ) : (
-            <div className="viewer-empty">
-              <div>
-                <p className="eyebrow">Local workflow</p>
-                <h2>Load a page image</h2>
-                <p>The raster stays local. ALTO XML is parsed by the application backend and returned as a normalized page model.</p>
-              </div>
-            </div>
+            <div className="viewer-empty"><div><p className="eyebrow">Local workflow</p><h2>Load a page image</h2><p>The raster and ALTO stay local. Parsing and visualization run entirely in your browser.</p></div></div>
           )}
         </section>
 
-        <Inspector
-          document={document}
-          page={page}
-          image={image}
-          counts={counts}
-          selected={selected}
-          selectedKey={selectedKey}
-          alignment={alignment}
-          onSelect={setSelectedKey}
-        />
+        <Inspector document={document} page={page} image={image} counts={counts} selected={selected} selectedKey={selectedKey} alignment={alignment} onSelect={setSelectedKey} />
       </section>
     </main>
   );
