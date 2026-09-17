@@ -6,12 +6,14 @@ import { FileDrop } from "./components/FileDrop";
 import { Inspector } from "./components/Inspector";
 import { LayerControls } from "./components/LayerControls";
 import { PageViewer } from "./components/PageViewer";
+import { WordSearch } from "./components/WordSearch";
 import { assessAlignment, countPageElements, flattenPage } from "./pageModel";
 import { resolveSchema } from "./schemaRegistry";
 import type { LayerState, PageDocumentDTO } from "./types";
 import { useLocalImage } from "./useLocalImage";
 import { validateDocument } from "./validation";
 import type { ValidationFinding } from "./validation";
+import { searchDocumentWords, wrapSearchIndex } from "./wordSearch";
 import { combineValidationReport } from "./xsdFindings";
 import { validateFileWithPinnedXsd } from "./xsdValidationClient";
 import type { BrowserXsdValidation } from "./xsdValidationProtocol";
@@ -38,6 +40,8 @@ export default function App() {
   const [xsdValidation, setXsdValidation] = useState<BrowserXsdValidation>({ status: "idle" });
   const [pageIndex, setPageIndex] = useState(0);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const [layers, setLayers] = useState<LayerState>(defaultLayers);
   const { image, error: imageError } = useLocalImage(imageFile);
 
@@ -46,6 +50,8 @@ export default function App() {
     setParseError(null);
     setXsdValidation({ status: "idle" });
     setSelectedKey(null);
+    setSearchQuery("");
+    setActiveSearchIndex(0);
     setPageIndex(0);
     if (!xmlFile) return;
 
@@ -99,11 +105,33 @@ export default function App() {
     return () => controller.abort();
   }, [document, xmlFile]);
 
+  useEffect(() => {
+    setActiveSearchIndex(0);
+  }, [document, searchQuery]);
+
   const page = document?.pages[pageIndex] ?? null;
   const nodes = useMemo(() => (page ? flattenPage(page) : []), [page]);
   const counts = useMemo(() => (page ? countPageElements(page) : null), [page]);
   const selected = useMemo(() => nodes.find((node) => node.key === selectedKey) ?? null, [nodes, selectedKey]);
   const alignment = useMemo(() => assessAlignment(page, image), [image, page]);
+  const searchMatches = useMemo(
+    () => document ? searchDocumentWords(document, searchQuery) : [],
+    [document, searchQuery],
+  );
+  const normalizedSearchIndex = wrapSearchIndex(activeSearchIndex, searchMatches.length);
+  const activeSearchMatch = searchMatches[normalizedSearchIndex] ?? null;
+  const searchHighlightKeys = useMemo(
+    () => new Set(searchMatches.filter((match) => match.pageIndex === pageIndex).map((match) => match.nodeKey)),
+    [pageIndex, searchMatches],
+  );
+  const activeSearchKey = activeSearchMatch?.pageIndex === pageIndex ? activeSearchMatch.nodeKey : null;
+
+  useEffect(() => {
+    if (!activeSearchMatch) return;
+    if (activeSearchMatch.pageIndex !== pageIndex) setPageIndex(activeSearchMatch.pageIndex);
+    setSelectedKey(activeSearchMatch.nodeKey);
+  }, [activeSearchMatch, pageIndex]);
+
   const semanticValidationReport = useMemo(
     () => document ? applyAdditionalValidation(
       validateDocument(document, { image, imagePageIndex: image ? pageIndex : null }),
@@ -122,6 +150,11 @@ export default function App() {
       setPageIndex(findingPage);
     }
     if (finding.target.node_key) setSelectedKey(finding.target.node_key);
+  };
+
+  const moveSearch = (delta: number): void => {
+    if (!searchMatches.length) return;
+    setActiveSearchIndex((current) => wrapSearchIndex(current + delta, searchMatches.length));
   };
 
   return (
@@ -162,6 +195,16 @@ export default function App() {
               </select>
             </label>
           )}
+          <WordSearch
+            query={searchQuery}
+            disabled={!document}
+            matchCount={searchMatches.length}
+            activeIndex={normalizedSearchIndex}
+            activePageIndex={activeSearchMatch?.pageIndex ?? null}
+            onQueryChange={setSearchQuery}
+            onPrevious={() => moveSearch(-1)}
+            onNext={() => moveSearch(1)}
+          />
           <LayerControls layers={layers} onChange={setLayers} />
           <div className="source-summary">
             <span>{image ? `${image.width} × ${image.height}px` : "No image"}</span>
@@ -173,7 +216,17 @@ export default function App() {
           {image ? (
             <>
               <div className={`alignment-strip alignment-${alignment.kind}`}>{alignment.message}</div>
-              <PageViewer image={image} page={page} nodes={nodes} layers={layers} selectedKey={selectedKey} alignment={alignment} onSelect={setSelectedKey} />
+              <PageViewer
+                image={image}
+                page={page}
+                nodes={nodes}
+                layers={layers}
+                selectedKey={selectedKey}
+                highlightedKeys={searchHighlightKeys}
+                focusKey={activeSearchKey}
+                alignment={alignment}
+                onSelect={setSelectedKey}
+              />
             </>
           ) : (
             <div className="viewer-empty"><div><p className="eyebrow">Local workflow</p><h2>Load a page image</h2><p>The raster and XML stay local. ALTO and PAGE parsing run entirely in your browser.</p></div></div>

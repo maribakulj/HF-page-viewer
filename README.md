@@ -27,6 +27,7 @@ The deployed Hugging Face Space is deliberately **static**. The production Space
 - normalized page model shared by both XML formats;
 - OpenSeadragon pan/zoom;
 - synchronized overlays for regions, lines, words, glyphs, baselines and reading order;
+- exact word search across ALTO/PAGE text with all page-local matches highlighted, previous/next navigation and automatic OpenSeadragon focus on the active occurrence;
 - metadata, processing history, styles/tags/extensions, source attributes and parser notices;
 - explicit image/XML dimension alignment diagnostics;
 - deterministic browser-side validation with stable rule IDs for geometry, confidence, XML IDs, reading order and provenance;
