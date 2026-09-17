@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { applyAdditionalValidation } from "./additionalValidation";
 import { parseDocumentFile } from "./api";
 import { FileDrop } from "./components/FileDrop";
 import { Inspector } from "./components/Inspector";
@@ -104,7 +105,10 @@ export default function App() {
   const selected = useMemo(() => nodes.find((node) => node.key === selectedKey) ?? null, [nodes, selectedKey]);
   const alignment = useMemo(() => assessAlignment(page, image), [image, page]);
   const semanticValidationReport = useMemo(
-    () => document ? validateDocument(document, { image, imagePageIndex: image ? pageIndex : null }) : null,
+    () => document ? applyAdditionalValidation(
+      validateDocument(document, { image, imagePageIndex: image ? pageIndex : null }),
+      document,
+    ) : null,
     [document, image, pageIndex],
   );
   const validationReport = useMemo(
