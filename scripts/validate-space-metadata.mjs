@@ -30,15 +30,19 @@ const requireValue = (key) => {
 
 const sdk = requireValue("sdk");
 if (sdk !== "static") {
-  throw new Error(`HF Page Viewer must deploy as a free Static Space; received sdk=${sdk}.`);
+  throw new Error(`HF Page Viewer must deploy as a Static Space; received sdk=${sdk}.`);
 }
 
 const appFile = requireValue("app_file");
-if (appFile !== "dist/index.html") {
-  throw new Error(`Expected app_file=dist/index.html; received ${appFile}.`);
+if (appFile !== "index.html") {
+  throw new Error(`Expected app_file=index.html for prebuilt deployment; received ${appFile}.`);
 }
 
-requireValue("app_build_command");
+if (metadata.has("app_build_command")) {
+  throw new Error(
+    "app_build_command must be absent: Hugging Face Static Space builds require credits. Build on GitHub Actions and publish prebuilt assets instead.",
+  );
+}
 
 const shortDescription = requireValue("short_description");
 if (shortDescription.length > 60) {
@@ -48,5 +52,5 @@ if (shortDescription.length > 60) {
 }
 
 console.log(
-  `Hugging Face metadata OK: sdk=${sdk}, app_file=${appFile}, short_description=${shortDescription.length}/60 chars.`,
+  `Hugging Face metadata OK: sdk=${sdk}, app_file=${appFile}, no app_build_command, short_description=${shortDescription.length}/60 chars.`,
 );
