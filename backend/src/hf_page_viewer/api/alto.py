@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 
 from hf_page_viewer.api.dto import document_to_dto
-from hf_page_viewer.api.xml import MAX_XML_UPLOAD_BYTES, read_limited_body, raise_xml_http_error
+from hf_page_viewer.api.xml import MAX_XML_UPLOAD_BYTES, raise_xml_http_error, read_limited_body
 from hf_page_viewer.parsers.alto import ALTOParseError, parse_alto
 from hf_page_viewer.parsers.xml import XMLInputError, parse_xml
 
