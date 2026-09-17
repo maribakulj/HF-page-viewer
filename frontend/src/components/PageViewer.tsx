@@ -111,6 +111,8 @@ export function PageViewer({
   highlightedKeys,
   focusKey,
   alignment,
+  interactiveBudget = INTERACTIVE_SVG_BUDGET,
+  onViewerOpen,
   onSelect,
 }: {
   image: ImageInfo;
@@ -121,6 +123,8 @@ export function PageViewer({
   highlightedKeys: ReadonlySet<string>;
   focusKey: string | null;
   alignment: AlignmentStatus;
+  interactiveBudget?: number;
+  onViewerOpen?: () => void;
   onSelect: (key: string) => void;
 }) {
   const osdElementRef = useRef<HTMLDivElement | null>(null);
@@ -165,6 +169,7 @@ export function PageViewer({
     const onOpen = () => {
       syncOverlay();
       focusSearchRef.current();
+      onViewerOpen?.();
     };
     viewer.addHandler("open", onOpen);
     viewer.addHandler("animation", syncOverlay);
@@ -177,7 +182,7 @@ export function PageViewer({
       viewerRef.current = null;
       viewer.destroy();
     };
-  }, [image.height, image.url, image.width]);
+  }, [image.height, image.url, image.width, onViewerOpen]);
 
   useEffect(() => {
     if (!page || !alignment.canRender) return;
@@ -219,6 +224,7 @@ export function PageViewer({
     return () => cancelAnimationFrame(frame);
   }, [alignment.canRender, focusKey, image.height, image.width, nodes, page]);
 
+  const safeInteractiveBudget = Math.max(1, Math.floor(interactiveBudget));
   const visibleNodes = useMemo(
     () => nodes.filter((node) => (
       node.geometry !== null
@@ -227,11 +233,11 @@ export function PageViewer({
     [focusKey, highlightedKeys, layers, nodes],
   );
   const renderedNodes = useMemo(() => {
-    if (visibleNodes.length <= INTERACTIVE_SVG_BUDGET) return visibleNodes;
+    if (visibleNodes.length <= safeInteractiveBudget) return visibleNodes;
     const result: OverlayNode[] = [];
     const used = new Set<string>();
     const add = (node: OverlayNode | undefined): void => {
-      if (!node || used.has(node.key) || result.length >= INTERACTIVE_SVG_BUDGET) return;
+      if (!node || used.has(node.key) || result.length >= safeInteractiveBudget) return;
       used.add(node.key);
       result.push(node);
     };
@@ -240,14 +246,14 @@ export function PageViewer({
     add(visibleNodes.find((node) => node.key === selectedKey));
     for (const node of visibleNodes) {
       if (highlightedKeys.has(node.key)) add(node);
-      if (result.length >= INTERACTIVE_SVG_BUDGET) break;
+      if (result.length >= safeInteractiveBudget) break;
     }
     for (const node of visibleNodes) {
       add(node);
-      if (result.length >= INTERACTIVE_SVG_BUDGET) break;
+      if (result.length >= safeInteractiveBudget) break;
     }
     return result;
-  }, [focusKey, highlightedKeys, selectedKey, visibleNodes]);
+  }, [focusKey, highlightedKeys, safeInteractiveBudget, selectedKey, visibleNodes]);
   const budgetExceeded = visibleNodes.length > renderedNodes.length;
 
   const nodeById = useMemo(() => {
