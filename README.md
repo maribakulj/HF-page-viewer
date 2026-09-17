@@ -8,7 +8,7 @@ app_build_command: cd frontend && npm install --no-audit --no-fund && npm run bu
 app_file: dist/index.html
 fullWidth: true
 header: mini
-short_description: Inspect ALTO/PAGE XML against page images and IIIF resources entirely in the browser.
+short_description: Inspect ALTO/PAGE XML against page images and IIIF.
 ---
 
 # HF Page Viewer
