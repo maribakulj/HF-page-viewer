@@ -72,7 +72,7 @@ async function firstDiagnosticMessage(page) {
   return page.locator(".iiif-diagnostic span").first().textContent().catch(() => null);
 }
 
-async function waitForIiifOutcome(page, timeout = 25_000) {
+async function waitForIiifOutcome(page, timeout = 20_000) {
   await page.waitForFunction(() => {
     const version = document.querySelector(".iiif-version-chip")?.textContent?.trim();
     const diagnostic = document.querySelector(".iiif-diagnostic strong")?.textContent?.trim();
@@ -80,8 +80,20 @@ async function waitForIiifOutcome(page, timeout = 25_000) {
   }, null, { timeout });
 }
 
-async function rawMetadataSummary(page, input) {
-  return page.evaluate(async (url) => {
+async function waitForImageResponse(page, imageResponses, timeout = 12_000) {
+  const started = Date.now();
+  while (imageResponses.length === 0 && Date.now() - started < timeout) {
+    await page.waitForTimeout(150);
+  }
+  if (imageResponses.length === 0) {
+    throw new Error(`No successful image/tile response was observed within ${timeout.toLocaleString()} ms after the IIIF source opened.`);
+  }
+}
+
+async function rawMetadataSummary(page, input, timeout = 10_000) {
+  return page.evaluate(async ({ url, timeoutMs }) => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(new DOMException("Provider probe timed out", "TimeoutError")), timeoutMs);
     try {
       const response = await fetch(url, {
         method: "GET",
@@ -90,6 +102,7 @@ async function rawMetadataSummary(page, input) {
         cache: "no-store",
         redirect: "follow",
         headers: { Accept: "application/ld+json, application/json;q=0.9, */*;q=0.1" },
+        signal: controller.signal,
       });
       const text = await response.text();
       let json = null;
@@ -118,8 +131,10 @@ async function rawMetadataSummary(page, input) {
       return {
         error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
       };
+    } finally {
+      window.clearTimeout(timer);
     }
-  }, input);
+  }, { url: input, timeoutMs: timeout });
 }
 
 async function runRequiredCase(browser, testCase) {
@@ -142,29 +157,14 @@ async function runRequiredCase(browser, testCase) {
     await page.waitForFunction(
       (expectedVersion) => document.querySelector(".iiif-version-chip")?.textContent?.trim() === expectedVersion,
       testCase.expectedVersion,
-      { timeout: 25_000 },
+      { timeout: 20_000 },
     );
     const viewer = page.locator(`.viewer-frame[data-viewer-source-kind="${testCase.expectedViewerKind}"]`);
-    await viewer.waitFor({ state: "visible", timeout: 25_000 });
+    await viewer.waitFor({ state: "visible", timeout: 20_000 });
 
-    if (testCase.expectImageResponse) {
-      await page.waitForFunction(
-        () => performance.getEntriesByType("resource").some((entry) => {
-          const resource = entry;
-          return resource.initiatorType === "img" || /\.(?:jpe?g|png|webp)(?:\?|$)/i.test(resource.name);
-        }),
-        null,
-        { timeout: 25_000 },
-      ).catch(async () => {
-        const started = Date.now();
-        while (imageResponses.length === 0 && Date.now() - started < 10_000) {
-          await page.waitForTimeout(200);
-        }
-        if (imageResponses.length === 0) throw new Error("No successful image/tile response was observed after the IIIF source opened.");
-      });
-    }
+    if (testCase.expectImageResponse) await waitForImageResponse(page, imageResponses);
 
-    await page.waitForTimeout(800);
+    await page.waitForTimeout(500);
     const viewerText = await viewer.textContent();
     if (viewerText?.includes("IIIF.TILE_SOURCE_OPEN_FAILED")) {
       throw new Error("Viewer reported IIIF.TILE_SOURCE_OPEN_FAILED.");
