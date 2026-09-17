@@ -97,9 +97,7 @@ function GeometryShape({
         width={geometry.width}
         height={geometry.height}
         vectorEffect="non-scaling-stroke"
-      >
-        <title>{nodeTitle(node)}</title>
-      </rect>
+      />
     );
   }
 
@@ -108,9 +106,7 @@ function GeometryShape({
       {...common}
       points={geometry.points.map((point) => `${point.x},${point.y}`).join(" ")}
       vectorEffect="non-scaling-stroke"
-    >
-      <title>{nodeTitle(node)}</title>
-    </polygon>
+    />
   );
 }
 
