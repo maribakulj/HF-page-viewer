@@ -1,7 +1,7 @@
 import type { ValidationFinding, ValidationReport, ValidationSummary } from "./validation";
 import type { BrowserXsdValidation } from "./xsdValidationProtocol";
 
-export const COMBINED_VALIDATOR_VERSION = "0.2.0";
+export const COMBINED_VALIDATOR_VERSION = "0.3.0";
 
 export type SchemaValidationExport = {
   status: Exclude<BrowserXsdValidation["status"], "idle" | "validating"> | "pending";
