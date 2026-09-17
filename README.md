@@ -13,18 +13,20 @@ short_description: Inspect ALTO/PAGE XML against page images and IIIF resources 
 
 # HF Page Viewer
 
-HF Page Viewer is a browser-only OCR/layout inspection application. Load a page image and an ALTO XML file, inspect the encoded geometry over the raster, browse metadata and structure, and progressively run deterministic validation checks.
+HF Page Viewer is a browser-only OCR/layout inspection application. Load a page image and an ALTO or PAGE XML file, inspect the encoded geometry over the raster, browse metadata and structure, and progressively run deterministic validation checks.
 
 The deployed Hugging Face Space is deliberately **static**. Since 2026, creating Docker or ordinary Gradio compute Spaces requires a paid Hugging Face plan, while Static Spaces remain free. The application therefore does not require a server at runtime: image and XML files stay in the browser.
 
 ## Current capabilities
 
 - local image loading through browser object URLs;
+- automatic ALTO vs PAGE XML detection;
 - ALTO v2/v3/v4 parsing in the browser;
-- normalized page model independent of ALTO-specific rendering code;
+- PAGE XML page-content parsing with `2019-07-15` as the baseline;
+- normalized page model shared by both XML formats;
 - OpenSeadragon pan/zoom;
 - synchronized overlays for regions, lines, words, glyphs, baselines and reading order;
-- metadata, processing history, styles, tags, source attributes and parser notices;
+- metadata, processing history, styles/tags/extensions, source attributes and parser notices;
 - explicit image/XML dimension alignment diagnostics;
 - frontend tests and TypeScript build gates.
 
@@ -75,10 +77,10 @@ The Vite build is emitted to `dist/` at the repository root. Hugging Face Static
 ## Standards baseline
 
 - ALTO 4.4, with common v2/v3/v4 namespace compatibility;
-- PAGE XML `2019-07-15` planned next;
+- PAGE XML page content `2019-07-15`, with dated namespace compatibility notices;
 - IIIF Image API 2.x/3.0 and Presentation API 2.1/3.0 planned as browser-side adapters.
 
-See `docs/ARCHITECTURE.md`, `docs/VALIDATION_MODEL.md`, `docs/ROADMAP.md` and the ADRs in `docs/adr/`.
+See `docs/ARCHITECTURE.md`, `docs/ALTO_ADAPTER.md`, `docs/PAGE_XML_ADAPTER.md`, `docs/VALIDATION_MODEL.md`, `docs/ROADMAP.md` and the ADRs in `docs/adr/`.
 
 ## License
 
