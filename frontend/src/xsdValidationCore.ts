@@ -24,7 +24,7 @@ export type XsdDiagnostic = {
 export type XsdValidationResult =
   | { status: "valid"; diagnostics: XsdDiagnostic[] }
   | { status: "invalid"; diagnostics: XsdDiagnostic[] }
-  | { status: "error"; stage: "schema" | "document" | "validation"; message: string; diagnostics: XsdDiagnostic[] };
+  | { status: "error"; stage: "load" | "schema" | "document" | "validation"; message: string; diagnostics: XsdDiagnostic[] };
 
 export type XsdSchemaBundle = {
   descriptor: SchemaDescriptor;
