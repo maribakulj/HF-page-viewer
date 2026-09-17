@@ -8,9 +8,11 @@ const executablePath = process.env.CHROME_BIN ?? "/usr/bin/google-chrome";
 const outputDir = resolve(process.cwd(), "benchmark-results");
 
 const cases = [
-  { id: "1k-words", count: 1_000, mode: "words" },
-  { id: "10k-words", count: 10_000, mode: "words" },
-  { id: "50k-geometry", count: 50_000, mode: "mixed" },
+  { id: "full-1k-words", count: 1_000, mode: "words", policy: "all", prepareZoomSteps: 0 },
+  { id: "full-10k-words", count: 10_000, mode: "words", policy: "all", prepareZoomSteps: 0 },
+  { id: "full-50k-geometry", count: 50_000, mode: "mixed", policy: "all", prepareZoomSteps: 0 },
+  { id: "adaptive-50k-home", count: 50_000, mode: "mixed", policy: "adaptive", prepareZoomSteps: 0 },
+  { id: "adaptive-50k-word-zoom", count: 50_000, mode: "mixed", policy: "adaptive", prepareZoomSteps: 3 },
 ];
 
 function round(value, digits = 1) {
@@ -82,6 +84,22 @@ async function measureSelection(page) {
   });
 }
 
+async function clickZoom(page) {
+  await page.evaluate(() => {
+    const button = document.querySelector('button[aria-label="Zoom in"]');
+    if (!(button instanceof HTMLButtonElement)) throw new Error("Zoom-in button is unavailable.");
+    button.click();
+  });
+}
+
+async function prepareZoom(page, steps) {
+  for (let index = 0; index < steps; index += 1) {
+    await clickZoom(page);
+    await page.waitForTimeout(520);
+  }
+  if (steps > 0) await page.waitForTimeout(120);
+}
+
 async function measureZoomFrames(page) {
   const intervals = await page.evaluate(async () => {
     const button = document.querySelector('button[aria-label="Zoom in"]');
@@ -134,6 +152,19 @@ async function measureHideAll(page) {
   });
 }
 
+async function browserSnapshot(page) {
+  return page.evaluate(() => ({
+    benchmark: window.__HF_PAGE_VIEWER_BENCHMARK__,
+    overlayShapes: document.querySelectorAll(".overlay-node").length,
+    lod: document.querySelector(".page-overlay")?.getAttribute("data-render-lod") ?? null,
+    domNodes: document.getElementsByTagName("*").length,
+    heapBytes: performance.memory?.usedJSHeapSize ?? null,
+    longTasks: window.__HF_LONG_TASKS__ ?? [],
+    userAgent: navigator.userAgent,
+    hardwareConcurrency: navigator.hardwareConcurrency ?? null,
+  }));
+}
+
 async function measureCase(browser, benchmarkCase) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   await installLongTaskProbe(page);
@@ -141,6 +172,7 @@ async function measureCase(browser, benchmarkCase) {
   url.searchParams.set("case", benchmarkCase.id);
   url.searchParams.set("count", String(benchmarkCase.count));
   url.searchParams.set("mode", benchmarkCase.mode);
+  url.searchParams.set("policy", benchmarkCase.policy);
 
   try {
     await page.goto(url.toString(), { waitUntil: "domcontentloaded", timeout: 120_000 });
@@ -150,14 +182,9 @@ async function measureCase(browser, benchmarkCase) {
       { timeout: 120_000 },
     );
 
-    const initial = await page.evaluate(() => ({
-      benchmark: window.__HF_PAGE_VIEWER_BENCHMARK__,
-      domNodes: document.getElementsByTagName("*").length,
-      heapBytes: performance.memory?.usedJSHeapSize ?? null,
-      longTasks: window.__HF_LONG_TASKS__ ?? [],
-      userAgent: navigator.userAgent,
-      hardwareConcurrency: navigator.hardwareConcurrency ?? null,
-    }));
+    const initial = await browserSnapshot(page);
+    await prepareZoom(page, benchmarkCase.prepareZoomSteps);
+    const prepared = await browserSnapshot(page);
 
     const selectionMs = await measureSelection(page);
     const zoom = await measureZoomFrames(page);
@@ -175,11 +202,16 @@ async function measureCase(browser, benchmarkCase) {
       id: benchmarkCase.id,
       count: benchmarkCase.count,
       mode: benchmarkCase.mode,
+      policy: benchmarkCase.policy,
+      prepareZoomSteps: benchmarkCase.prepareZoomSteps,
       status: "ok",
       generationMs: round(initial.benchmark?.generationMs),
       initialRenderMs: round(initial.benchmark?.initialRenderMs),
-      overlayShapes: initial.benchmark?.shapeCount ?? null,
-      domNodes: initial.domNodes,
+      initialOverlayShapes: initial.overlayShapes,
+      initialLod: initial.lod,
+      preparedOverlayShapes: prepared.overlayShapes,
+      preparedLod: prepared.lod,
+      domNodesPrepared: prepared.domNodes,
       initialLongTasks: initialLongTasks.length,
       initialLongTaskTotalMs: round(initialLongTasks.reduce((sum, task) => sum + task.duration, 0)),
       selectionMs: round(selectionMs),
@@ -189,6 +221,7 @@ async function measureCase(browser, benchmarkCase) {
       totalLongTasks: totalLongTasks.length,
       totalLongTaskMs: round(totalLongTasks.reduce((sum, task) => sum + task.duration, 0)),
       heapInitialMb: initial.heapBytes == null ? null : round(initial.heapBytes / 1024 / 1024),
+      heapPreparedMb: prepared.heapBytes == null ? null : round(prepared.heapBytes / 1024 / 1024),
       heapAfterHideMb: final.heapBytes == null ? null : round(final.heapBytes / 1024 / 1024),
       remainingOverlayNodes: final.remainingOverlayNodes,
       environment: {
@@ -201,6 +234,8 @@ async function measureCase(browser, benchmarkCase) {
       id: benchmarkCase.id,
       count: benchmarkCase.count,
       mode: benchmarkCase.mode,
+      policy: benchmarkCase.policy,
+      prepareZoomSteps: benchmarkCase.prepareZoomSteps,
       status: "error",
       error: error instanceof Error ? error.message : String(error),
     };
@@ -212,11 +247,11 @@ async function measureCase(browser, benchmarkCase) {
 function markdown(results, environment) {
   const rows = results.map((result) => {
     if (result.status !== "ok") {
-      return `| ${result.id} | ${result.count.toLocaleString()} | ERROR | — | — | — | — | — | ${result.error.replaceAll("|", "\\|")} |`;
+      return `| ${result.id} | ${result.count.toLocaleString()} | ${result.policy} | ERROR | — | — | — | — | — | ${result.error.replaceAll("|", "\\|")} |`;
     }
-    return `| ${result.id} | ${result.overlayShapes.toLocaleString()} | ${result.initialRenderMs} | ${result.selectionMs} | ${result.zoom.p95Ms} | ${result.zoom.maxMs} | ${result.hideAllMs} | ${result.heapInitialMb ?? "n/a"} | ${result.totalLongTasks} |`;
+    return `| ${result.id} | ${result.count.toLocaleString()} | ${result.policy} | ${result.initialOverlayShapes.toLocaleString()} → ${result.preparedOverlayShapes.toLocaleString()} | ${result.preparedLod ?? "—"} | ${result.initialRenderMs} | ${result.selectionMs} | ${result.zoom.p95Ms} | ${result.hideAllMs} | ${result.heapPreparedMb ?? "n/a"} |`;
   });
-  return `# SVG overlay renderer benchmark\n\nGenerated by the reproducible Chrome-headless benchmark harness. These numbers are environment-specific baselines, not universal UX thresholds.\n\n- Chrome: ${environment.chromeVersion}\n- OS runner: ${environment.platform}\n- Node: ${process.version}\n- Benchmark URL: ${baseUrl}\n\n| case | shapes | initial render ms | selection ms | zoom p95 frame ms | zoom max frame ms | hide-all ms | heap MB | long tasks |\n| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n${rows.join("\n")}\n`;
+  return `# SVG overlay renderer benchmark\n\nGenerated by the reproducible Chrome-headless benchmark harness. These numbers are environment-specific baselines, not universal UX thresholds.\n\n- Chrome: ${environment.chromeVersion}\n- OS runner: ${environment.platform}\n- Node: ${process.version}\n- Benchmark URL: ${baseUrl}\n\n| case | source shapes | policy | live shapes initial → prepared | prepared LOD | initial render ms | selection ms | zoom p95 frame ms | hide-all ms | prepared heap MB |\n| --- | ---: | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: |\n${rows.join("\n")}\n`;
 }
 
 await mkdir(outputDir, { recursive: true });
@@ -234,7 +269,7 @@ try {
   };
   const results = [];
   for (const benchmarkCase of cases) {
-    console.log(`Running renderer benchmark: ${benchmarkCase.id} (${benchmarkCase.count.toLocaleString()} shapes)`);
+    console.log(`Running renderer benchmark: ${benchmarkCase.id} (${benchmarkCase.count.toLocaleString()} source shapes, ${benchmarkCase.policy})`);
     const result = await measureCase(browser, benchmarkCase);
     results.push(result);
     console.log(JSON.stringify(result, null, 2));
