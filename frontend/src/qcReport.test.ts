@@ -43,11 +43,7 @@ const document: PageDocumentDTO = {
     reading_order: null,
     source_ref: null,
   }],
-  metadata: [],
-  processing_steps: [],
-  extensions: [],
-  notices: [],
-  source_attributes: {},
+  metadata: [], processing_steps: [], extensions: [], notices: [], source_attributes: {},
 };
 
 const validation: CombinedValidationReport = {
@@ -57,45 +53,56 @@ const validation: CombinedValidationReport = {
   page_count: 1,
   summary: { errors: 0, warnings: 0, info: 0, total: 0 },
   findings: [],
-  schema_validation: {
-    status: "valid",
-    schema_id: "alto-4.4",
-    schema_label: "ALTO 4.4",
-    diagnostic_count: 0,
-  },
+  schema_validation: { status: "valid", schema_id: "alto-4.4", schema_label: "ALTO 4.4", diagnostic_count: 0 },
 };
 
 describe("buildQcReport", () => {
-  it("builds a stable machine-readable report with page counts and source fingerprints", () => {
+  it("builds a stable machine-readable report with page counts, source fingerprints and an unmodified working copy", () => {
     const report = buildQcReport({
       document,
       validation,
-      xmlFingerprint: {
-        algorithm: "sha256",
-        hex: "abc123",
-        bytes: 12,
-        name: "sample.xml",
-        media_type: "application/xml",
-      },
+      xmlFingerprint: { algorithm: "sha256", hex: "abc123", bytes: 12, name: "sample.xml", media_type: "application/xml" },
       imageFingerprint: null,
       activeImage: { url: "blob:test", name: "page.jpg", width: 1000, height: 2000, source_kind: "local" },
       pageIndex: 0,
-      iiif: {
-        loadedUrl: null,
-        inspection: null,
-        selection: { canvasIndex: null, imageIndex: null },
-        resolvedService: null,
-      },
+      iiif: { loadedUrl: null, inspection: null, selection: { canvasIndex: null, imageIndex: null }, resolvedService: null },
       generatedAt: "2026-09-17T18:00:00.000Z",
     });
 
-    expect(report.report_version).toBe("1.0.0");
+    expect(report.report_version).toBe("1.1.0");
     expect(report.generated_at).toBe("2026-09-17T18:00:00.000Z");
+    expect(report.working_copy).toEqual({ modified: false, word_text_edits: [] });
     expect(report.document.pages[0]).toMatchObject({ regions: 1, lines: 1, words: 1, glyphs: 0 });
     expect(report.document.xml_fingerprint?.hex).toBe("abc123");
     expect(report.image.source_kind).toBe("local");
     expect(report.iiif).toBeNull();
     expect(report.validation.schema_validation.status).toBe("valid");
     expect(qcReportFilename(report)).toBe("sample.qc.json");
+  });
+
+  it("records explicit word-text edits in the QC working-copy section", () => {
+    const report = buildQcReport({
+      document,
+      validation,
+      xmlFingerprint: null,
+      imageFingerprint: null,
+      activeImage: null,
+      pageIndex: 0,
+      edits: [{
+        kind: "word_text",
+        target_key: "word:w1",
+        page_index: 0,
+        element_id: "w1",
+        source_path: null,
+        before: "hello",
+        after: "hullo",
+      }],
+      iiif: { loadedUrl: null, inspection: null, selection: { canvasIndex: null, imageIndex: null }, resolvedService: null },
+      generatedAt: "2026-09-17T18:00:00.000Z",
+    });
+
+    expect(report.working_copy.modified).toBe(true);
+    expect(report.working_copy.word_text_edits).toHaveLength(1);
+    expect(report.working_copy.word_text_edits[0]).toMatchObject({ before: "hello", after: "hullo" });
   });
 });

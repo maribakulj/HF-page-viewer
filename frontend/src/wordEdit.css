@@ -1,0 +1,49 @@
+.word-edit-panel {
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid #dfe5ee;
+  border-radius: 9px;
+  background: #fffdf8;
+}
+
+.word-edit-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.word-edit-heading h3 {
+  margin: 0 0 3px;
+  color: #3c4c63;
+  font-size: .78rem;
+}
+
+.word-edit-heading p,
+.word-edit-panel .muted {
+  margin: 0;
+  font-size: .7rem;
+  line-height: 1.4;
+}
+
+.word-edit-panel input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 8px;
+  border: 1px solid #cbd2dd;
+  border-radius: 7px;
+}
+
+.word-edit-actions {
+  display: flex;
+  gap: 7px;
+}
+
+.word-edit-actions button {
+  padding: 6px 8px;
+  border: 1px solid #c8d2df;
+  border-radius: 7px;
+  background: #fff;
+  font-size: .7rem;
+}
