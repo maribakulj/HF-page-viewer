@@ -60,7 +60,8 @@
 }
 
 .iiif-actions button,
-.iiif-use-button {
+.iiif-use-button,
+.source-image-switch {
   padding: 7px 9px;
   border: 1px solid #b9c7da;
   border-radius: 7px;
@@ -76,12 +77,14 @@
   opacity: .55;
 }
 
-.iiif-actions .button-secondary {
+.iiif-actions .button-secondary,
+.source-image-switch {
   color: #5d687a;
   background: #fff;
 }
 
-.iiif-use-button {
+.iiif-use-button,
+.source-image-switch {
   width: 100%;
 }
 
