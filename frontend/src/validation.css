@@ -11,6 +11,13 @@
 .validation-toolbar p { margin: 2px 0 0; color: #6c7688; font-size: .7rem; }
 .validation-toolbar button, .validation-actions button { padding: 6px 8px; border: 1px solid #c8d1df; border-radius: 6px; color: #34577e; background: #f7f9fc; font-size: .7rem; font-weight: 650; }
 .validation-toolbar button:hover, .validation-actions button:hover { background: #edf3fb; }
+.xsd-status { display: grid; gap: 3px; padding: 9px 10px; border: 1px solid #dfe5ec; border-left-width: 3px; border-radius: 7px; background: #fafbfd; }
+.xsd-status strong { font-size: .73rem; }
+.xsd-status p { margin: 0; color: #647087; font-size: .68rem; line-height: 1.4; }
+.xsd-valid { border-left-color: #4a9960; background: #f3faf5; }
+.xsd-invalid, .xsd-error { border-left-color: #c9473c; background: #fff7f6; }
+.xsd-validating { border-left-color: #5e84ad; background: #f5f9fe; }
+.xsd-unsupported { border-left-color: #b38a43; background: #fffaf0; }
 .validation-summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .validation-summary-grid > div { display: grid; padding: 8px; border: 1px solid #e2e7ee; border-radius: 7px; background: #fafbfd; }
 .validation-summary-grid strong { font-size: .92rem; }
