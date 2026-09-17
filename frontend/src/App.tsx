@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { parseAltoFile } from "./api";
+import { parseDocumentFile } from "./api";
 import { FileDrop } from "./components/FileDrop";
 import { Inspector } from "./components/Inspector";
 import { LayerControls } from "./components/LayerControls";
@@ -18,9 +18,13 @@ const defaultLayers: LayerState = {
   readingOrder: true,
 };
 
+function formatName(document: PageDocumentDTO): string {
+  return document.source_format === "alto" ? "ALTO" : "PAGE XML";
+}
+
 export default function App() {
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [altoFile, setAltoFile] = useState<File | null>(null);
+  const [xmlFile, setXmlFile] = useState<File | null>(null);
   const [document, setDocument] = useState<PageDocumentDTO | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
@@ -34,24 +38,24 @@ export default function App() {
     setParseError(null);
     setSelectedKey(null);
     setPageIndex(0);
-    if (!altoFile) return;
+    if (!xmlFile) return;
 
     const controller = new AbortController();
     setParsing(true);
-    parseAltoFile(altoFile, controller.signal)
+    parseDocumentFile(xmlFile, controller.signal)
       .then((parsed) => {
         setDocument(parsed);
         setPageIndex(0);
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
-        setParseError(error instanceof Error ? error.message : "ALTO parsing failed.");
+        setParseError(error instanceof Error ? error.message : "XML parsing failed.");
       })
       .finally(() => {
         if (!controller.signal.aborted) setParsing(false);
       });
     return () => controller.abort();
-  }, [altoFile]);
+  }, [xmlFile]);
 
   const page = document?.pages[pageIndex] ?? null;
   const nodes = useMemo(() => (page ? flattenPage(page) : []), [page]);
@@ -67,7 +71,7 @@ export default function App() {
           <h1>HF Page Viewer</h1>
         </div>
         <div className="topbar-statuses">
-          {document && <span className="status status-neutral">ALTO {document.source_version ?? "?"}</span>}
+          {document && <span className="status status-neutral">{formatName(document)} {document.source_version ?? "?"}</span>}
           <span className="status status-ok">Static · browser-local</span>
         </div>
       </header>
@@ -76,11 +80,11 @@ export default function App() {
         <aside className="panel source-panel">
           <div>
             <h2>Sources</h2>
-            <p className="panel-intro">Drop one page image and its ALTO XML. Neither file leaves your browser.</p>
+            <p className="panel-intro">Drop one page image and its ALTO or PAGE XML. Neither file leaves your browser.</p>
           </div>
           <FileDrop title="Page image" description="JPEG, PNG, WebP, TIFF if your browser supports it" accept="image/*" file={imageFile} onFile={setImageFile} />
-          <FileDrop title="ALTO XML" description="ALTO v2, v3 or v4" accept=".xml,application/xml,text/xml" file={altoFile} onFile={setAltoFile} />
-          {parsing && <p className="inline-state">Parsing ALTO locally…</p>}
+          <FileDrop title="OCR/layout XML" description="ALTO v2–v4 or PAGE XML" accept=".xml,application/xml,text/xml" file={xmlFile} onFile={setXmlFile} />
+          {parsing && <p className="inline-state">Parsing XML locally…</p>}
           {parseError && <p className="inline-error">{parseError}</p>}
           {imageError && <p className="inline-error">{imageError}</p>}
 
@@ -97,7 +101,7 @@ export default function App() {
           <LayerControls layers={layers} onChange={setLayers} />
           <div className="source-summary">
             <span>{image ? `${image.width} × ${image.height}px` : "No image"}</span>
-            <span>{page ? `${page.width ?? "?"} × ${page.height ?? "?"} ${page.measurement_unit}` : "No ALTO page"}</span>
+            <span>{page ? `${page.width ?? "?"} × ${page.height ?? "?"} ${page.measurement_unit}` : "No XML page"}</span>
           </div>
         </aside>
 
@@ -108,7 +112,7 @@ export default function App() {
               <PageViewer image={image} page={page} nodes={nodes} layers={layers} selectedKey={selectedKey} alignment={alignment} onSelect={setSelectedKey} />
             </>
           ) : (
-            <div className="viewer-empty"><div><p className="eyebrow">Local workflow</p><h2>Load a page image</h2><p>The raster and ALTO stay local. Parsing and visualization run entirely in your browser.</p></div></div>
+            <div className="viewer-empty"><div><p className="eyebrow">Local workflow</p><h2>Load a page image</h2><p>The raster and XML stay local. ALTO and PAGE parsing run entirely in your browser.</p></div></div>
           )}
         </section>
 
