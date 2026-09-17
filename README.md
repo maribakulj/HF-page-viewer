@@ -27,6 +27,8 @@ The deployed Hugging Face Space is deliberately **static**. The production Space
 - normalized page model shared by both XML formats;
 - OpenSeadragon pan/zoom;
 - synchronized overlays for regions, lines, words, glyphs, baselines and reading order;
+- adaptive SVG rendering with Fit-relative level-of-detail, viewport culling, 12% overscan and a 6,000-shape final safety budget for dense pages;
+- search/selection geometry is force-preserved across LOD, culling and layer visibility;
 - exact word search across ALTO/PAGE text with all page-local matches highlighted, previous/next navigation and automatic OpenSeadragon focus on the active occurrence;
 - metadata, processing history, styles/tags/extensions, source attributes and parser notices;
 - explicit image/XML dimension alignment diagnostics;
@@ -35,7 +37,7 @@ The deployed Hugging Face Space is deliberately **static**. The production Space
 - schema diagnostics mapped to `XML.SCHEMA_INVALID` findings with line/XPath evidence when available;
 - validation findings linked back to viewer targets, with evidence/remediation and JSON report export;
 - explicit `XSD not pinned for this version` status for parseable legacy/other namespaces rather than validating them against the wrong schema;
-- reproducible Chrome-headless overlay benchmarks for 1k/10k/50k geometry loads; results and rendering decisions are documented in [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md);
+- reproducible Chrome-headless overlay benchmarks comparing full SVG with adaptive rendering at 1k/10k/50k source-geometry loads; results are documented in [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md);
 - frontend tests and TypeScript build gates.
 
 ## Architecture
@@ -45,8 +47,10 @@ Local image + XML
         │
         ├──────────────► ALTO / PAGE parser ─────► normalized PageDocument
         │                                                │
-        │                                                ▼
-        │                                     semantic validation rules
+        │                                                ├────► semantic validation rules
+        │                                                │
+        │                                                └────► adaptive SVG render policy
+        │                                                        LOD + viewport culling
         │
         └──────────────► XSD Worker
                            │
@@ -61,14 +65,14 @@ normalized document + diagnostics
         ┌───────┴────────┐
         ▼                ▼
  OpenSeadragon        Inspector
- + overlays           validation / metadata
+ + SVG overlays        validation / metadata
 ```
 
 The canonical runtime is the TypeScript frontend. The existing Python backend is retained temporarily as a reference implementation and fixture oracle while browser parity is established; the deployed application does not call it.
 
 Semantic validation is implemented as a pure TypeScript rule registry. Normative XSD validation uses `libxml2-wasm` 0.7.2 in a separate ES-module Worker. Schema files are version-pinned, SHA-256 verified during CI/build, bundled into the static application, and loaded only from the deployed Space's own origin at runtime. See [`docs/SCHEMAS.md`](docs/SCHEMAS.md).
 
-The viewer renderer stays SVG-first because direct interaction and accessibility are useful, but the 1k/10k/50k browser benchmark shows that tens of thousands of simultaneous interactive SVG nodes are too expensive. The measured baseline and adaptive SVG (LOD/culling) decision are documented in [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
+The viewer remains SVG-first, but no longer attempts to instantiate the whole geometry tree at once. At Fit page it renders overview geometry; words become eligible at 2× Fit and glyphs at 6× Fit. Dense word/glyph layers are culled to the OpenSeadragon viewport with overscan, while active search/selection targets remain visible. The 1k/10k/50k benchmark and before/after evidence are documented in [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
 
 ## Local development
 
