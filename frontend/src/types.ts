@@ -155,6 +155,8 @@ export type ImageInfo = {
   name: string;
   width: number;
   height: number;
+  source_kind?: "local" | "iiif";
+  tile_source_url?: string | null;
 };
 
 export type LayerState = {
