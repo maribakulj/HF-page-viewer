@@ -56,7 +56,10 @@ def polyline_to_dto(polyline: Polyline | None) -> dict[str, Any] | None:
 
 
 def _alternatives_to_dto(items: tuple[TextAlternative, ...]) -> list[dict[str, Any]]:
-    return [{"text": item.text, "confidence": item.confidence} for item in items]
+    return [
+        {"text": item.text, "confidence": item.confidence, "kind": item.kind}
+        for item in items
+    ]
 
 
 def glyph_to_dto(glyph: Glyph) -> dict[str, Any]:
@@ -122,6 +125,9 @@ def page_to_dto(page: Page) -> dict[str, Any]:
         "height": page.height,
         "measurement_unit": page.measurement_unit.value,
         "image_reference": page.image_reference,
+        "language": page.language,
+        "other_languages": list(page.other_languages),
+        "rotation": page.rotation,
         "regions": [region_to_dto(region) for region in page.regions],
         "reading_order": _reading_order_to_dto(page.reading_order),
         "source_ref": source_ref_to_dto(page.source_ref),
@@ -152,6 +158,17 @@ def document_to_dto(document: PageDocument) -> dict[str, Any]:
                 "source_ref": source_ref_to_dto(step.source_ref),
             }
             for step in document.processing_steps
+        ],
+        "extensions": [
+            {
+                "category": extension.category,
+                "name": extension.name,
+                "identifier": extension.identifier,
+                "text": extension.text,
+                "attributes": dict(extension.attributes),
+                "source_ref": source_ref_to_dto(extension.source_ref),
+            }
+            for extension in document.extensions
         ],
         "notices": [
             {

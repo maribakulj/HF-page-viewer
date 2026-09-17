@@ -101,6 +101,7 @@ class SourceRef:
 class TextAlternative:
     text: str
     confidence: float | None = None
+    kind: str = "primary"
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +117,16 @@ class ProcessingStep:
     software_name: str | None = None
     software_version: str | None = None
     timestamp: str | None = None
+    attributes: tuple[tuple[str, str], ...] = ()
+    source_ref: SourceRef | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SourceExtension:
+    category: str
+    name: str
+    identifier: str | None = None
+    text: str | None = None
     attributes: tuple[tuple[str, str], ...] = ()
     source_ref: SourceRef | None = None
 
@@ -183,6 +194,9 @@ class Page:
     height: float | None = None
     measurement_unit: MeasurementUnit = MeasurementUnit.UNKNOWN
     image_reference: str | None = None
+    language: str | None = None
+    other_languages: tuple[str, ...] = ()
+    rotation: float | None = None
     regions: tuple[Region, ...] = ()
     reading_order: ReadingOrderGroup | None = None
     source_ref: SourceRef | None = None
@@ -196,5 +210,6 @@ class PageDocument:
     pages: tuple[Page, ...]
     metadata: tuple[MetadataEntry, ...] = ()
     processing_steps: tuple[ProcessingStep, ...] = ()
+    extensions: tuple[SourceExtension, ...] = ()
     notices: tuple[ParserNotice, ...] = ()
     source_attributes: tuple[tuple[str, str], ...] = field(default_factory=tuple)
