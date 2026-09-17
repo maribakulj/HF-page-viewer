@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from math import isfinite
-from typing import Mapping
 
 
 class SourceFormat(StrEnum):
@@ -88,7 +88,7 @@ class SourceRef:
         path: str,
         xml_id: str | None = None,
         attributes: Mapping[str, str] | None = None,
-    ) -> "SourceRef":
+    ) -> SourceRef:
         return cls(
             element_name=element_name,
             path=path,
@@ -163,7 +163,7 @@ class Region:
     geometry: Geometry | None = None
     text_alternatives: tuple[TextAlternative, ...] = ()
     lines: tuple[TextLine, ...] = ()
-    regions: tuple["Region", ...] = ()
+    regions: tuple[Region, ...] = ()
     source_ref: SourceRef | None = None
 
 
@@ -172,7 +172,7 @@ class ReadingOrderGroup:
     element_id: str | None = None
     ordered: bool = True
     refs: tuple[str, ...] = ()
-    groups: tuple["ReadingOrderGroup", ...] = ()
+    groups: tuple[ReadingOrderGroup, ...] = ()
     source_ref: SourceRef | None = None
 
 

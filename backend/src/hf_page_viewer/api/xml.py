@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Never
+
 from fastapi import APIRouter, HTTPException, Request, status
 
 from hf_page_viewer.parsers.xml import (
@@ -34,7 +36,7 @@ async def read_limited_body(request: Request, *, limit: int = MAX_XML_UPLOAD_BYT
     return b"".join(chunks)
 
 
-def _raise_http_error(exc: Exception) -> None:
+def _raise_http_error(exc: Exception) -> Never:
     if isinstance(exc, XMLTooLargeError):
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
@@ -67,7 +69,6 @@ async def detect_xml(request: Request) -> dict[str, object]:
         UnsupportedXMLFormatError,
     ) as exc:
         _raise_http_error(exc)
-        raise AssertionError("unreachable")
 
     return {
         **parsed.detection.to_dict(),
