@@ -19,7 +19,7 @@ Version-specific JSON-LD structure is kept inside `iiifModel.ts`:
 
 The application does not contain a Gallica-specific parser. Provider convenience adapters may be added later only on top of this generic layer.
 
-## Image-service requests
+## Image-service requests and native tiled viewing
 
 Normalized services expose:
 
@@ -30,12 +30,19 @@ Normalized services expose:
 - canonical `info.json` URL;
 - canonical full-image request.
 
-The current full-image request policy is:
+The canonical full-image request policy is:
 
 - Image API 3: `full/max/0/default.jpg`;
 - Image API 2: `full/full/0/default.jpg`.
 
-`ImageInfo` also carries a normalized `tile_source_url` when an Image API service exists. Native OpenSeadragon consumption of that `info.json` is the next IIIF rendering tranche; the first browser-core tranche deliberately keeps the existing raster viewer path unchanged and uses the canonical full-image URL.
+`ImageInfo` also carries a normalized `tile_source_url` when an Image API service exists. `PageViewer` now passes that `info.json` directly to OpenSeadragon as the preferred TileSource. When no usable Image API service is available, the viewer falls back to the normalized raster URL.
+
+Renderer failures are separated from metadata-fetch failures:
+
+- `IIIF.TILE_SOURCE_OPEN_FAILED` means OpenSeadragon could not open the normalized IIIF TileSource;
+- `IIIF.TILE_LOAD_FAILED` means a terminal tile request failed after OpenSeadragon exhausted retries.
+
+This distinction matters because a manifest or `info.json` can parse correctly while the actual image service is temporarily unavailable, misconfigured, or blocked independently.
 
 ## Browser fetch and security policy
 
@@ -117,6 +124,23 @@ Local and IIIF images may coexist.
 - when both exist, the user can explicitly switch the viewer to IIIF and back to the local raster;
 - IIIF validation remains available regardless of which raster is currently displayed.
 
+When the chosen IIIF candidate exposes Image API 2/3 metadata, the viewer uses native OpenSeadragon tiled rendering. Otherwise it renders the normalized raster URL.
+
+## Reproducible live smoke tests
+
+`.github/workflows/iiif-live-smoke.yml` runs the real browser application in system Chrome and records screenshots plus a JSON evidence artifact. It is intentionally separate from the core CI so third-party endpoint outages do not block unrelated ALTO/PAGE changes.
+
+Validated live cases on 2026-09-17 in Chrome 152:
+
+- IIIF Image API 3 reference service: loaded as `iiif_tiles`; multiple real JPEG tile responses returned HTTP 200;
+- IIIF Image API 2.1 reference service: loaded as `iiif_tiles`; multiple real JPEG tile responses returned HTTP 200;
+- IIIF Presentation 3 Cookbook manifest: normalized successfully and displayed its painting raster;
+- BnF `openapi.bnf.fr` Image API v3 endpoint: normalized successfully and selected as `iiif_tiles`;
+- Gallica Presentation 2 manifest: normalized successfully;
+- historical Gallica image endpoint used in the smoke test advertises IIIF Image API **1.1** (`http://library.stanford.edu/iiif/image-api/1.1/context.json`), so `IIIF.UNSUPPORTED_RESOURCE` is the expected result for the current Image 2/3 scope rather than a parser failure.
+
+The provider probes are observational. The generic IIIF reference cases remain the reproducible compatibility baseline.
+
 ## Tests
 
 The browser suite covers:
@@ -129,14 +153,16 @@ The browser suite covers:
 - HTTP/JSON/size/timeout/network/CORS diagnostics;
 - explicit viewer candidate selection;
 - service-dimension enrichment;
-- XML/Canvas/image dimension findings.
+- XML/Canvas/image dimension findings;
+- pure TileSource selection for raster vs IIIF tiled images.
 
-## Next tranche
+The live browser workflow additionally proves that OpenSeadragon opens real Image API 2/3 `info.json` documents and requests actual tiles.
 
-The generic browser core intentionally stops short of claiming native tiled rendering. The next IIIF tranche should:
+## Remaining IIIF work
 
-1. let `PageViewer` open normalized `info.json` directly as an OpenSeadragon tile source;
-2. preserve canonical full-image fallback when no usable Image API service exists;
-3. surface tile/open failures separately from metadata-fetch failures;
-4. test real public Image 2/3 and Presentation 2/3 endpoints, including Gallica only as a provider example rather than as the generic model;
-5. add stronger linkage checks between XML source-image references, Canvas IDs and Image service IDs where evidence is actually encoded.
+The generic IIIF browser path is now complete for the current #7 acceptance scope. Future improvements should be driven by real corpus needs rather than silently broadening the contract. Candidate follow-up work includes:
+
+1. optional legacy IIIF Image API 1.1 support for historical providers such as old Gallica image endpoints;
+2. stronger linkage checks between XML source-image references, Canvas IDs and Image service IDs where evidence is actually encoded;
+3. additional Presentation 2 edge cases such as externally referenced sequences/canvases;
+4. provider convenience adapters on top of, never inside, the generic normalization layer.
