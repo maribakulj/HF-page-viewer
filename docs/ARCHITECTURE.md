@@ -1,214 +1,78 @@
 # Architecture
 
-## 1. Problem boundary
+## Deployment constraint
 
-HF Page Viewer is not an OCR engine and should not become one by accident. Its core job is to
-**inspect, explain and validate page-level OCR/layout representations** against the image they
-claim to describe.
+HF Page Viewer must be deployable on a free Hugging Face account. Since Hugging Face now requires a paid plan to create Docker or ordinary Gradio compute Spaces, the production target is a **Static Space**.
 
-The architecture therefore separates four concerns:
+That is a product constraint, not merely a hosting detail: the deployed application cannot depend on a server process.
 
-1. ingestion of local or remote resources;
-2. parsing and normalization of ALTO/PAGE/IIIF;
-3. deterministic validation and analysis;
-4. interactive visualization.
-
-The frontend is a client of these capabilities, not their owner.
-
-## 2. Target system
+## Target system
 
 ```text
-Local files / URLs / IIIF
-          │
-          ▼
-  Source ingestion layer
-  - upload limits
-  - media sniffing
-  - SSRF-safe fetching
-  - image metadata
-          │
-          ▼
-     Format adapters
-  ┌──────────┬──────────┐
-  │   ALTO   │ PAGE XML │       IIIF adapter
-  └────┬─────┴────┬─────┘            │
-       └──────┬───┘                   │
-              ▼                       │
-      Normalized PageDocument ◄───────┘
-              │
-      ┌───────┴────────┐
-      ▼                ▼
-Validation engine   Analysis/stats
-      │                │
-      └───────┬────────┘
-              ▼
-         FastAPI API
-              │
-              ▼
- React + TypeScript + OpenSeadragon
+Local image/XML     Public IIIF resources
+      │                    │
+      └─────────┬──────────┘
+                ▼
+       browser ingestion
+                │
+                ▼
+       standards adapters
+        ALTO / PAGE / IIIF
+                │
+                ▼
+      normalized PageDocument
+          ┌─────┴─────┐
+          ▼           ▼
+      validation    analysis
+          │           │
+          └─────┬─────┘
+                ▼
+     OpenSeadragon + overlays
 ```
 
-## 3. Normalized domain model
+## Runtime boundaries
 
-The canonical model is intentionally smaller than either source standard but is **loss-aware**.
-Every normalized node keeps source identity and source attributes so that diagnostics can point
-back to the original XML without flattening away useful information.
+### Browser core
 
-Planned core entities:
+The canonical production implementation lives under `frontend/src` and contains pure modules for:
 
-- `PageDocument`: source format/version, metadata, provenance, one or more pages;
-- `Page`: source image reference, width/height, measurement unit, regions, reading order;
-- `Region`: semantic/layout type, polygon/bounding box, child lines/regions;
-- `TextLine`: polygon/bbox, baseline, text alternatives, words;
-- `Word`: polygon/bbox, text, confidence, glyphs;
-- `Glyph`: geometry, text and confidence;
-- `ReadingOrder`: ordered/unordered groups and references;
-- `SourceRef`: XML id, XPath-like location, original element/attribute names;
-- `MetadataEntry`: normalized label/value plus source path;
-- `ProcessingStep`: OCR software, version, timestamp, settings and provenance;
-- `ValidationFinding`: rule id, severity, location, evidence, expected/actual and remediation.
+- XML ingestion and format detection;
+- ALTO/PAGE normalization;
+- geometry and reading-order analysis;
+- deterministic validation;
+- IIIF normalization/fetching subject to browser CORS;
+- report serialization.
 
-Geometry primitives (`Point`, `Polygon`, `BBox`) are shared across formats. Source coordinates
-are retained exactly; conversion or scale is represented explicitly.
+React owns interaction state and presentation only. Parsing and validation modules must remain callable from Vitest without rendering React.
 
-## 4. Backend packages
+### XML safety
 
-The backend will evolve toward this dependency direction:
+Uploaded XML is capped before parsing. DTD/entity declarations are rejected. The browser parser never intentionally resolves external resources. Future XSD validation will use pinned local schemas through WebAssembly; user documents will never trigger arbitrary schema/DTD network fetches.
 
-```text
-hf_page_viewer.domain          no framework dependencies
-hf_page_viewer.parsers         -> domain
-hf_page_viewer.validation      -> domain
-hf_page_viewer.iiif            -> domain
-hf_page_viewer.services        -> parsers/validation/iiif
-hf_page_viewer.api             -> services
-hf_page_viewer.main            -> api
+### XSD validation
+
+Browser-side `libxml2-wasm` is the preferred route for normative XSD validation. Schemas and required imports/includes will be vendored and version-pinned. This preserves deterministic validation without server compute.
+
+### IIIF
+
+Remote IIIF requests originate from the user's browser. This removes server-side SSRF risk, but introduces the normal browser CORS boundary. A fetch failure caused by CORS must be reported as an interoperability/access limitation, not as proof that the remote resource is invalid.
+
+## Viewer
+
+OpenSeadragon displays local rasters and later IIIF tile sources. OCR geometry is expressed in image/page coordinates and rendered as a synchronized SVG layer initially. Dense pages are subject to an explicit interactive-shape budget until browser benchmarks justify SVG, Canvas or WebGL thresholds.
+
+## Python reference implementation
+
+`backend/` currently remains as a reference implementation and regression oracle because the secure XML/domain/ALTO work was first implemented there. It is **not part of the deployed Static Space**. Once the browser implementation reaches fixture parity, the project should either remove the Python runtime or turn it into an explicitly optional CLI/library rather than maintaining two accidental canonical implementations.
+
+## Build and deployment
+
+Vite emits `dist/` at repository root. Hugging Face uses:
+
+```yaml
+sdk: static
+app_build_command: cd frontend && npm install --no-audit --no-fund && npm run build
+app_file: dist/index.html
 ```
 
-Rules:
-
-- `domain` must never import FastAPI, HTTP clients or XML libraries;
-- parsers perform format translation, not validation policy;
-- validation rules must be independently testable;
-- IIIF HTTP access lives behind a fetcher interface so tests use local fixtures;
-- API response models are versioned separately from internal parser implementation.
-
-## 5. Frontend architecture
-
-The UI is built around one synchronized selection state.
-
-### Main workspace
-
-- **Source panel**: image/XML uploads, URL/manifest input, detected format and dimensions.
-- **Viewer**: OpenSeadragon image with SVG/canvas overlays.
-- **Inspector**: Overview, Metadata, Validation, Structure, IIIF and Raw XML tabs.
-- **Status strip**: counts, zoom, selected element and validation summary.
-
-### Overlay layers
-
-Each layer can be enabled independently:
-
-- page/print space;
-- text and non-text regions;
-- text lines;
-- words;
-- glyphs;
-- baselines;
-- reading order;
-- validation markers.
-
-The renderer consumes normalized geometry only. ALTO-specific and PAGE-specific quirks belong
-in the adapters.
-
-### Interaction model
-
-Clicking or hovering any overlay selects the corresponding domain object and synchronizes:
-
-- geometry highlight;
-- structure tree node;
-- transcription/text alternatives;
-- confidence and source attributes;
-- diagnostics attached to that node.
-
-This prevents the usual viewer failure mode where the picture, XML tree and error list are
-three unrelated little bureaucracies.
-
-## 6. Validation pipeline
-
-Validation runs in layers so a malformed document can still yield useful findings:
-
-1. safe XML parse / well-formedness;
-2. format and version detection;
-3. XSD/schema validation when an appropriate local schema is available;
-4. structural integrity (IDs, references, required relationships);
-5. geometry validity and containment;
-6. text hierarchy consistency;
-7. source-image consistency;
-8. reading-order consistency;
-9. IIIF consistency and interoperability checks;
-10. advisory quality diagnostics.
-
-A single failure does not abort later checks unless the required input is unavailable.
-
-## 7. IIIF integration
-
-The IIIF layer should accept:
-
-- an Image API `info.json` URL;
-- an Image API service base URL;
-- a Presentation 2.1 or 3.0 manifest;
-- eventually, convenience identifiers such as ARKs through provider adapters.
-
-Checks include:
-
-- API/version/profile detection;
-- image and canvas dimensions;
-- image service linkage;
-- canonical image request construction;
-- CORS headers where relevant to browser interoperability;
-- XML/image/Canvas dimension mismatches;
-- manifest metadata and rights exposure;
-- multiple candidate images/canvases, surfaced rather than guessed.
-
-Provider-specific logic (BnF, LoC, etc.) must remain optional adapters.
-
-## 8. Security and resource controls
-
-A public Space processes hostile input by definition.
-
-Required controls before remote fetching ships:
-
-- parse XML with DTD/network/entity resolution disabled;
-- reject or tightly control `file:`, `ftp:` and non-HTTP(S) schemes;
-- resolve DNS and block loopback, link-local, private and reserved targets;
-- revalidate every redirect target;
-- enforce connection/read timeouts and response-size limits;
-- cap upload sizes and image pixel counts;
-- never interpolate XML/metadata into executable HTML;
-- keep user sessions ephemeral and isolated;
-- do not persist uploads by default.
-
-## 9. Deployment model
-
-A multi-stage Docker build compiles the React frontend, installs the Python backend and copies
-the frontend assets into the runtime image. FastAPI serves `/api/*` and the built single-page
-application from one process on port `7860`.
-
-Benefits:
-
-- exactly one Space/container;
-- no CORS complication between frontend and backend;
-- same image runs locally and on Hugging Face;
-- no Gradio-specific state model constraining the viewer;
-- future deployment to another container platform requires no rewrite.
-
-## 10. Observability
-
-The application should expose at minimum:
-
-- `/api/health` for liveness;
-- structured server logs with request correlation ids;
-- parser/validator version in exported reports;
-- timing counters for parsing, validation and remote fetches (without storing document content).
-
-Telemetry must remain opt-in if it leaves the runtime.
+No Dockerfile, Python server or paid Hugging Face compute is required for production.
