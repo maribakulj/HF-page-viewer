@@ -4,6 +4,7 @@ import OpenSeadragon from "openseadragon";
 import { flattenReadingOrderRefs, geometryCenter } from "../pageModel";
 import type { AlignmentStatus } from "../pageModel";
 import {
+  boundsIntersect,
   geometryBounds,
   geometryIntersectsWindow,
   overscannedWindow,
@@ -19,6 +20,11 @@ type RenderViewState = {
   lod: RenderLod;
   relativeZoom: number | null;
   window: RenderWindow | null;
+};
+
+type ReadingOrderEntry = {
+  reference: string;
+  center: { x: number; y: number };
 };
 
 const DEFAULT_RENDER_VIEW: RenderViewState = {
@@ -48,6 +54,29 @@ function renderViewEqual(left: RenderViewState, right: RenderViewState): boolean
       ? left.relativeZoom === right.relativeZoom
       : Math.abs(left.relativeZoom - right.relativeZoom) < 0.005)
     && renderWindowEqual(left.window, right.window);
+}
+
+function centerInsideWindow(center: { x: number; y: number }, window: RenderWindow | null): boolean {
+  return !window || (
+    center.x >= window.minX
+    && center.x <= window.maxX
+    && center.y >= window.minY
+    && center.y <= window.maxY
+  );
+}
+
+function segmentIntersectsWindow(
+  first: { x: number; y: number },
+  second: { x: number; y: number },
+  window: RenderWindow | null,
+): boolean {
+  if (!window) return true;
+  return boundsIntersect({
+    minX: Math.min(first.x, second.x),
+    minY: Math.min(first.y, second.y),
+    maxX: Math.max(first.x, second.x),
+    maxY: Math.max(first.y, second.y),
+  }, window);
 }
 
 function GeometryShape({
@@ -333,7 +362,11 @@ export function PageViewer({
   const renderedBaselines = useMemo(() => {
     if (!layers.baselines) return [];
     return nodes
-      .filter((node) => node.kind === "line" && node.baseline && geometryIntersectsWindow(node.geometry, effectiveWindow))
+      .filter((node) => (
+        node.kind === "line"
+        && node.baseline
+        && (!node.geometry || geometryIntersectsWindow(node.geometry, effectiveWindow))
+      ))
       .slice(0, safeInteractiveBudget);
   }, [effectiveWindow, layers.baselines, nodes, safeInteractiveBudget]);
 
@@ -345,7 +378,7 @@ export function PageViewer({
     return map;
   }, [nodes]);
 
-  const readingOrder = useMemo(() => {
+  const readingOrder = useMemo((): ReadingOrderEntry[] => {
     if (!page || !layers.readingOrder) return [];
     return flattenReadingOrderRefs(page.reading_order)
       .map((reference) => {
@@ -353,14 +386,21 @@ export function PageViewer({
         const center = geometryCenter(node?.geometry ?? null);
         return center ? { reference, center } : null;
       })
-      .filter((entry): entry is { reference: string; center: { x: number; y: number } } => entry !== null)
-      .filter((entry) => !effectiveWindow || (
-        entry.center.x >= effectiveWindow.minX
-        && entry.center.x <= effectiveWindow.maxX
-        && entry.center.y >= effectiveWindow.minY
-        && entry.center.y <= effectiveWindow.maxY
-      ));
-  }, [effectiveWindow, layers.readingOrder, nodeById, page]);
+      .filter((entry): entry is ReadingOrderEntry => entry !== null);
+  }, [layers.readingOrder, nodeById, page]);
+
+  const visibleReadingOrderLabels = useMemo(
+    () => readingOrder.filter((entry) => centerInsideWindow(entry.center, effectiveWindow)),
+    [effectiveWindow, readingOrder],
+  );
+
+  const visibleReadingOrderSegments = useMemo(
+    () => readingOrder.slice(1).map((entry, index) => ({
+      previous: readingOrder[index],
+      entry,
+    })).filter(({ previous, entry }) => segmentIntersectsWindow(previous.center, entry.center, effectiveWindow)),
+    [effectiveWindow, readingOrder],
+  );
 
   const hasWords = useMemo(() => nodes.some((node) => node.kind === "word"), [nodes]);
   const hasGlyphs = useMemo(() => nodes.some((node) => node.kind === "glyph"), [nodes]);
@@ -402,30 +442,28 @@ export function PageViewer({
               vectorEffect="non-scaling-stroke"
             />
           ))}
-          {layers.readingOrder &&
-            readingOrder.slice(1).map((entry, index) => {
-              const previous = readingOrder[index];
-              return (
-                <line
-                  key={`ro-line:${previous.reference}:${entry.reference}`}
-                  className="overlay-reading-order"
-                  x1={previous.center.x}
-                  y1={previous.center.y}
-                  x2={entry.center.x}
-                  y2={entry.center.y}
-                  vectorEffect="non-scaling-stroke"
-                />
-              );
-            })}
-          {layers.readingOrder &&
-            readingOrder.map((entry, index) => (
+          {layers.readingOrder && visibleReadingOrderSegments.map(({ previous, entry }) => (
+            <line
+              key={`ro-line:${previous.reference}:${entry.reference}`}
+              className="overlay-reading-order"
+              x1={previous.center.x}
+              y1={previous.center.y}
+              x2={entry.center.x}
+              y2={entry.center.y}
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+          {layers.readingOrder && visibleReadingOrderLabels.map((entry) => {
+            const index = readingOrder.indexOf(entry);
+            return (
               <g key={`ro-label:${entry.reference}`} className="reading-order-label">
                 <circle cx={entry.center.x} cy={entry.center.y} r={8} vectorEffect="non-scaling-stroke" />
                 <text x={entry.center.x} y={entry.center.y} dominantBaseline="middle" textAnchor="middle">
                   {index + 1}
                 </text>
               </g>
-            ))}
+            );
+          })}
         </svg>
       )}
 
