@@ -1,0 +1,60 @@
+name: Deploy Hugging Face Space
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-hf-space
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm install --no-audit --no-fund
+
+      - name: Test browser core
+        working-directory: frontend
+        run: npm test
+
+      - name: Build static application
+        working-directory: frontend
+        run: npm run build
+
+      - name: Verify static artifact
+        run: test -f dist/index.html
+
+      - name: Install Hugging Face CLI
+        run: |
+          curl -LsSf https://hf.co/cli/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Publish to Ma-Ri-Ba-Ku/Inspector-ALTO
+        env:
+          HF_OIDC_RESOURCE: spaces/Ma-Ri-Ba-Ku/Inspector-ALTO
+        run: |
+          hf upload Ma-Ri-Ba-Ku/Inspector-ALTO . . \
+            --repo-type=space \
+            --include="README.md" \
+            --include="LICENSE" \
+            --include="frontend/**" \
+            --delete="*" \
+            --commit-message="Deploy GitHub ${GITHUB_SHA::7}"
