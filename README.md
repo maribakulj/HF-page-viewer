@@ -12,7 +12,7 @@ short_description: Inspect ALTO/PAGE XML against page images and IIIF.
 
 # HF Page Viewer
 
-HF Page Viewer is a browser-only OCR/layout inspection application. Load a page image and an ALTO or PAGE XML file, inspect the encoded geometry over the raster, browse metadata and structure, and progressively run deterministic validation checks.
+HF Page Viewer is a browser-only OCR/layout inspection application. Load a page image and an ALTO or PAGE XML file, inspect the encoded geometry over the raster, browse metadata and structure, and run deterministic quality checks without uploading the document to an application server.
 
 Production Space: **[Ma-Ri-Ba-Ku/Inspector-ALTO](https://huggingface.co/spaces/Ma-Ri-Ba-Ku/Inspector-ALTO)**.
 
@@ -29,6 +29,8 @@ The deployed Hugging Face Space is deliberately **static**. The production Space
 - synchronized overlays for regions, lines, words, glyphs, baselines and reading order;
 - metadata, processing history, styles/tags/extensions, source attributes and parser notices;
 - explicit image/XML dimension alignment diagnostics;
+- deterministic browser-side validation with stable rule IDs for geometry, confidence, XML IDs, reading order and provenance;
+- validation findings linked back to viewer targets, with evidence/remediation and JSON report export;
 - frontend tests and TypeScript build gates.
 
 ## Architecture
@@ -55,7 +57,7 @@ Local files / public IIIF URLs
 
 The canonical runtime is the TypeScript frontend. The existing Python backend is retained temporarily as a reference implementation and fixture oracle while browser parity is established; the deployed application does not call it.
 
-Normative XSD validation is planned with browser-side WebAssembly (`libxml2-wasm`) so schema validation does not require server compute.
+The first semantic validation tranche is implemented as a pure TypeScript rule registry. Normative XSD validation remains planned with browser-side WebAssembly (`libxml2-wasm` is the current candidate) so schema validation does not require server compute.
 
 ## Local development
 
