@@ -1,3 +1,4 @@
+import type { BBoxEdit } from "./bboxEdits";
 import type { IiifImageService, IiifInspection } from "./iiifModel";
 import type { IiifSelection } from "./iiifViewer";
 import { resolveIiifSelection } from "./iiifViewer";
@@ -7,8 +8,8 @@ import type { ImageInfo, PageDocumentDTO } from "./types";
 import type { WordTextEdit } from "./wordEdits";
 import type { CombinedValidationReport } from "./xsdFindings";
 
-export const QC_REPORT_VERSION = "1.1.0";
-export const QC_GENERATOR_VERSION = "0.2.0";
+export const QC_REPORT_VERSION = "1.2.0";
+export const QC_GENERATOR_VERSION = "0.3.0";
 
 export type QcReportInput = {
   document: PageDocumentDTO;
@@ -17,7 +18,8 @@ export type QcReportInput = {
   imageFingerprint: FileFingerprint | null;
   activeImage: ImageInfo | null;
   pageIndex: number;
-  edits?: WordTextEdit[];
+  wordTextEdits?: WordTextEdit[];
+  bboxEdits?: BBoxEdit[];
   iiif: {
     loadedUrl: string | null;
     inspection: IiifInspection | null;
@@ -31,7 +33,7 @@ export type QcReport = {
   report_version: string;
   generated_at: string;
   generator: { name: "HF Page Viewer"; version: string; runtime: "browser" };
-  working_copy: { modified: boolean; word_text_edits: WordTextEdit[] };
+  working_copy: { modified: boolean; word_text_edits: WordTextEdit[]; bbox_edits: BBoxEdit[] };
   document: {
     source_format: PageDocumentDTO["source_format"];
     source_version: string | null;
@@ -58,7 +60,8 @@ export type QcReport = {
 
 export function buildQcReport(input: QcReportInput): QcReport {
   const generatedAt = input.generatedAt ?? new Date().toISOString();
-  const edits = input.edits ?? [];
+  const wordTextEdits = input.wordTextEdits ?? [];
+  const bboxEdits = input.bboxEdits ?? [];
   const resolvedIiif = input.iiif.inspection
     ? resolveIiifSelection(input.iiif.inspection, input.iiif.selection, input.iiif.resolvedService)
     : null;
@@ -66,7 +69,11 @@ export function buildQcReport(input: QcReportInput): QcReport {
     report_version: QC_REPORT_VERSION,
     generated_at: generatedAt,
     generator: { name: "HF Page Viewer", version: QC_GENERATOR_VERSION, runtime: "browser" },
-    working_copy: { modified: edits.length > 0, word_text_edits: edits },
+    working_copy: {
+      modified: wordTextEdits.length > 0 || bboxEdits.length > 0,
+      word_text_edits: wordTextEdits,
+      bbox_edits: bboxEdits,
+    },
     document: {
       source_format: input.document.source_format,
       source_version: input.document.source_version,

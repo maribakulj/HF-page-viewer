@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 
 import { applyAdditionalValidation } from "./additionalValidation";
 import { parseDocumentFile } from "./api";
+import { applyBBoxEdits, createBBoxEdit } from "./bboxEdits";
+import type { BBoxEdit } from "./bboxEdits";
+import { BBoxEditPanel } from "./components/BBoxEditPanel";
 import { FileDrop } from "./components/FileDrop";
 import { IiifSourcePanel } from "./components/IiifSourcePanel";
 import { Inspector } from "./components/Inspector";
@@ -14,7 +17,7 @@ import { applyIiifValidation } from "./iiifValidation";
 import { assessAlignment, countPageElements, flattenPage } from "./pageModel";
 import { buildQcReport } from "./qcReport";
 import { resolveSchema } from "./schemaRegistry";
-import type { LayerState, PageDocumentDTO } from "./types";
+import type { BBoxDTO, LayerState, PageDocumentDTO } from "./types";
 import { useFileFingerprint } from "./useFileFingerprint";
 import { useIiifSource } from "./useIiifSource";
 import { useLocalImage } from "./useLocalImage";
@@ -38,6 +41,7 @@ export default function App() {
   const [xmlFile, setXmlFile] = useState<File | null>(null);
   const [document, setDocument] = useState<PageDocumentDTO | null>(null);
   const [wordEdits, setWordEdits] = useState<WordTextEdit[]>([]);
+  const [bboxEdits, setBBoxEdits] = useState<BBoxEdit[]>([]);
   const [parseError, setParseError] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
   const [xsdValidation, setXsdValidation] = useState<BrowserXsdValidation>({ status: "idle" });
@@ -55,6 +59,7 @@ export default function App() {
   useEffect(() => {
     setDocument(null);
     setWordEdits([]);
+    setBBoxEdits([]);
     setParseError(null);
     setXsdValidation({ status: "idle" });
     setSelectedKey(null);
@@ -87,7 +92,10 @@ export default function App() {
     return () => controller.abort();
   }, [document, xmlFile]);
 
-  const workingDocument = useMemo(() => document ? applyWordTextEdits(document, wordEdits) : null, [document, wordEdits]);
+  const workingDocument = useMemo(() => {
+    if (!document) return null;
+    return applyBBoxEdits(applyWordTextEdits(document, wordEdits), bboxEdits);
+  }, [bboxEdits, document, wordEdits]);
 
   useEffect(() => { setActiveSearchIndex(0); }, [workingDocument, searchQuery]);
   useEffect(() => { if (image) setPreferredImageSource("local"); }, [image]);
@@ -127,9 +135,10 @@ export default function App() {
     imageFingerprint: imageFingerprint.fingerprint,
     activeImage,
     pageIndex,
-    edits: wordEdits,
+    wordTextEdits: wordEdits,
+    bboxEdits,
     iiif: { loadedUrl: iiif.loadedUrl, inspection: iiif.inspection, selection: iiif.selection, resolvedService: iiif.resolvedService },
-  }) : null, [activeImage, workingDocument, iiif.inspection, iiif.loadedUrl, iiif.resolvedService, iiif.selection, imageFingerprint.fingerprint, pageIndex, validationReport, wordEdits, xmlFingerprint.fingerprint]);
+  }) : null, [activeImage, bboxEdits, workingDocument, iiif.inspection, iiif.loadedUrl, iiif.resolvedService, iiif.selection, imageFingerprint.fingerprint, pageIndex, validationReport, wordEdits, xmlFingerprint.fingerprint]);
   const fingerprinting = xmlFingerprint.hashing || imageFingerprint.hashing;
   const fingerprintError = xmlFingerprint.error ?? imageFingerprint.error;
 
@@ -144,6 +153,20 @@ export default function App() {
     const edit = createWordTextEdit({ targetKey: selected.key, pageIndex, elementId: selected.elementId, sourcePath: selected.sourceRef?.path ?? null, before: selected.text ?? "", after: value });
     if (edit) setWordEdits((current) => [...current, edit]);
   };
+  const commitBBoxEdit = (bbox: BBoxDTO): void => {
+    if (!selected || !["region", "line", "word"].includes(selected.kind) || selected.geometry?.kind !== "bbox") return;
+    const edit = createBBoxEdit({
+      targetKind: selected.kind as "region" | "line" | "word",
+      targetKey: selected.key,
+      pageIndex,
+      elementId: selected.elementId,
+      sourcePath: selected.sourceRef?.path ?? null,
+      before: selected.geometry,
+      after: bbox,
+    });
+    if (edit) setBBoxEdits((current) => [...current, edit]);
+  };
+  const totalEdits = wordEdits.length + bboxEdits.length;
 
   return (
     <main className="shell">
@@ -151,7 +174,7 @@ export default function App() {
         <div><p className="eyebrow">OCR layout inspection</p><h1>HF Page Viewer</h1></div>
         <div className="topbar-statuses">
           {workingDocument && <span className="status status-neutral">{formatName(workingDocument)} {workingDocument.source_version ?? "?"}</span>}
-          {wordEdits.length > 0 && <span className="status status-neutral">Working copy · {wordEdits.length} edit{wordEdits.length === 1 ? "" : "s"}</span>}
+          {totalEdits > 0 && <span className="status status-neutral">Working copy · {totalEdits} edit{totalEdits === 1 ? "" : "s"}</span>}
           {iiif.inspection && <span className="status status-neutral">IIIF {iiif.inspection.version}</span>}
           {validationReport && validationReport.summary.errors > 0 && <span className="status status-error">{validationReport.summary.errors} validation error{validationReport.summary.errors === 1 ? "" : "s"}</span>}
           {xsdValidation.status === "valid" && <span className="status status-ok">Source XSD valid</span>}
@@ -172,6 +195,7 @@ export default function App() {
           {workingDocument && workingDocument.pages.length > 1 && <label className="field-label">XML page<select value={pageIndex} onChange={(event) => setPageIndex(Number(event.target.value))}>{workingDocument.pages.map((candidate, index) => <option key={candidate.source_ref?.path ?? candidate.element_id} value={index}>{index + 1} · {candidate.element_id}</option>)}</select></label>}
           <WordSearch query={searchQuery} disabled={!workingDocument} matchCount={searchMatches.length} activeIndex={normalizedSearchIndex} activePageIndex={activeSearchMatch?.pageIndex ?? null} onQueryChange={setSearchQuery} onPrevious={() => moveSearch(-1)} onNext={() => moveSearch(1)} />
           <WordTextEditPanel selected={selected} editCount={wordEdits.length} onCommit={commitWordEdit} onUndo={() => setWordEdits((current) => current.slice(0, -1))} onReset={() => setWordEdits([])} />
+          <BBoxEditPanel selected={selected} editCount={bboxEdits.length} onCommit={commitBBoxEdit} onUndo={() => setBBoxEdits((current) => current.slice(0, -1))} onReset={() => setBBoxEdits([])} />
           <LayerControls layers={layers} onChange={setLayers} />
           <QcReportPanel report={qcReport} hashing={fingerprinting} fingerprintError={fingerprintError} />
           <div className="source-summary"><span>{activeImage ? `${activeImage.width} × ${activeImage.height}px · ${iiifActive ? "IIIF" : "local"}` : "No viewer image"}</span><span>{page ? `${page.width ?? "?"} × ${page.height ?? "?"} ${page.measurement_unit}` : "No XML page"}</span></div>
