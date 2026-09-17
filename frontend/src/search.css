@@ -1,0 +1,18 @@
+.word-search { display: grid; gap: 8px; padding: 11px; border: 1px solid #dce3ec; border-radius: 9px; background: #fafbfd; }
+.word-search-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.word-search-heading strong { color: #334155; font-size: .78rem; }
+.word-search-heading p { margin: 2px 0 0; color: #7a8497; font-size: .67rem; }
+.word-search-clear { padding: 3px 6px; border: 0; color: #49698f; background: transparent; font-size: .67rem; }
+.word-search-clear:hover { text-decoration: underline; }
+.word-search input[type="search"] { width: 100%; padding: 8px 9px; border: 1px solid #c8d1df; border-radius: 7px; color: #253249; background: #fff; font-size: .78rem; outline: none; }
+.word-search input[type="search"]:focus { border-color: #4d73a8; box-shadow: 0 0 0 2px rgba(77,115,168,.13); }
+.word-search input[type="search"]:disabled { color: #8b94a4; background: #f0f2f5; }
+.word-search-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; color: #657089; font-size: .69rem; }
+.word-search-empty { color: #9a4a3b; }
+.word-search-nav { display: flex; gap: 4px; }
+.word-search-nav button { width: 28px; height: 27px; padding: 0; border: 1px solid #cbd3df; border-radius: 6px; color: #355d8e; background: #fff; font-weight: 750; }
+.word-search-nav button:hover:not(:disabled) { background: #edf4fc; }
+.word-search-nav button:disabled { cursor: default; color: #a5adba; background: #f4f5f7; }
+
+.overlay-node.is-search-match { fill: rgba(250, 204, 21, .28); stroke: #facc15; stroke-width: 2.4; pointer-events: all; filter: drop-shadow(0 0 1.5px rgba(250,204,21,.72)); }
+.overlay-node.is-search-active { fill: rgba(249, 115, 22, .34); stroke: #f97316; stroke-width: 3.4; pointer-events: all; filter: drop-shadow(0 0 3px rgba(249,115,22,.9)); }
