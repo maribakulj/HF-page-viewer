@@ -155,11 +155,16 @@ describe("IIIF normalization", () => {
     const manifest = structuredClone(MANIFEST_3);
     const page = manifest.items[0].items[0];
     page.items.push({
-      ...page.items[0],
       id: "https://example.org/canvas/1/painting-2",
+      type: "Annotation",
+      motivation: "painting",
+      target: "https://example.org/canvas/1",
       body: {
-        ...page.items[0].body,
         id: "https://images.example.org/alternate.jpg",
+        type: "Image",
+        format: "image/jpeg",
+        width: 3000,
+        height: 4000,
         service: [],
       },
     });
