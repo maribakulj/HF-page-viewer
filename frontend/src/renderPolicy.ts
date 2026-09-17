@@ -9,8 +9,8 @@ export type RenderWindow = {
   maxY: number;
 };
 
-export const WORD_LOD_MIN_IMAGE_ZOOM = 0.35;
-export const GLYPH_LOD_MIN_IMAGE_ZOOM = 1.1;
+export const WORD_LOD_MIN_RELATIVE_ZOOM = 2;
+export const GLYPH_LOD_MIN_RELATIVE_ZOOM = 6;
 export const VIEWPORT_OVERSCAN_RATIO = 0.12;
 
 export function geometryBounds(geometry: GeometryDTO | null): RenderWindow | null {
@@ -34,9 +34,9 @@ export function geometryBounds(geometry: GeometryDTO | null): RenderWindow | nul
   };
 }
 
-export function renderLodForImageZoom(imageZoom: number | null): RenderLod {
-  if (imageZoom == null || !Number.isFinite(imageZoom) || imageZoom < WORD_LOD_MIN_IMAGE_ZOOM) return "overview";
-  if (imageZoom < GLYPH_LOD_MIN_IMAGE_ZOOM) return "words";
+export function renderLodForRelativeZoom(relativeZoom: number | null): RenderLod {
+  if (relativeZoom == null || !Number.isFinite(relativeZoom) || relativeZoom < WORD_LOD_MIN_RELATIVE_ZOOM) return "overview";
+  if (relativeZoom < GLYPH_LOD_MIN_RELATIVE_ZOOM) return "words";
   return "glyphs";
 }
 
