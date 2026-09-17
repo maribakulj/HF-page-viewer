@@ -1,5 +1,5 @@
 import type { SchemaDescriptor } from "./schemaRegistry";
-import type { XsdValidationResult } from "./xsdValidationCore";
+import type { XsdDiagnostic, XsdValidationResult } from "./xsdValidationCore";
 
 export type XsdWorkerResource = {
   virtualUrl: string;
@@ -23,6 +23,6 @@ export type BrowserXsdValidation =
   | { status: "idle" }
   | { status: "validating"; schemaId: string; schemaLabel: string }
   | { status: "unsupported"; reason: string }
-  | { status: "valid"; schemaId: string; schemaLabel: string; diagnostics: XsdValidationResult extends { diagnostics: infer D } ? D : never }
-  | { status: "invalid"; schemaId: string; schemaLabel: string; diagnostics: XsdValidationResult extends { diagnostics: infer D } ? D : never }
-  | { status: "error"; schemaId: string; schemaLabel: string; stage: "load" | "schema" | "document" | "validation"; message: string; diagnostics: XsdValidationResult extends { diagnostics: infer D } ? D : never };
+  | { status: "valid"; schemaId: string; schemaLabel: string; diagnostics: XsdDiagnostic[] }
+  | { status: "invalid"; schemaId: string; schemaLabel: string; diagnostics: XsdDiagnostic[] }
+  | { status: "error"; schemaId: string; schemaLabel: string; stage: "load" | "schema" | "document" | "validation"; message: string; diagnostics: XsdDiagnostic[] };
