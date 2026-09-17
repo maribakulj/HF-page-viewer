@@ -6,6 +6,7 @@ import type { AlignmentStatus } from "../pageModel";
 import type { ImageInfo, LayerState, OverlayNode, PageDTO } from "../types";
 import "../styles.css";
 import "../search.css";
+import "../renderer.css";
 import "./benchmark.css";
 
 const PAGE_WIDTH = 5000;
@@ -52,15 +53,18 @@ const initialLayers: LayerState = {
 };
 
 type BenchmarkMode = "words" | "mixed";
+type BenchmarkPolicy = "all" | "adaptive";
 
 type BenchmarkPublicState = {
   caseId: string;
   requestedShapes: number;
   mode: BenchmarkMode;
+  policy: BenchmarkPolicy;
   generationMs: number;
   renderStart: number;
   initialRenderMs: number | null;
   shapeCount: number | null;
+  lod: string | null;
   ready: boolean;
   osdReady: boolean;
 };
@@ -71,13 +75,14 @@ declare global {
   }
 }
 
-function parseConfig(): { count: number; mode: BenchmarkMode; caseId: string } {
+function parseConfig(): { count: number; mode: BenchmarkMode; policy: BenchmarkPolicy; caseId: string } {
   const params = new URLSearchParams(window.location.search);
   const requested = Number(params.get("count") ?? "1000");
   const count = Number.isFinite(requested) ? Math.min(100000, Math.max(1, Math.floor(requested))) : 1000;
   const mode: BenchmarkMode = params.get("mode") === "mixed" ? "mixed" : "words";
-  const caseId = params.get("case")?.trim() || `${count}-${mode}`;
-  return { count, mode, caseId };
+  const policy: BenchmarkPolicy = params.get("policy") === "adaptive" ? "adaptive" : "all";
+  const caseId = params.get("case")?.trim() || `${count}-${mode}-${policy}`;
+  return { count, mode, policy, caseId };
 }
 
 function kindFor(index: number, mode: BenchmarkMode): OverlayNode["kind"] {
@@ -138,22 +143,24 @@ function BenchmarkApp({
 
   const publishReady = useCallback(() => {
     if (publishedRef.current || !firstPaintReadyRef.current || !viewerReadyRef.current) return;
+    const overlay = document.querySelector(".page-overlay");
     const shapeCount = document.querySelectorAll(".overlay-node").length;
-    if (shapeCount !== nodes.length) return;
     publishedRef.current = true;
     window.__HF_PAGE_VIEWER_BENCHMARK__ = {
       caseId: config.caseId,
       requestedShapes: config.count,
       mode: config.mode,
+      policy: config.policy,
       generationMs,
       renderStart,
       initialRenderMs: performance.now() - renderStart,
       shapeCount,
+      lod: overlay?.getAttribute("data-render-lod") ?? null,
       ready: true,
       osdReady: true,
     };
     document.documentElement.dataset.benchmarkReady = "true";
-  }, [config.caseId, config.count, config.mode, generationMs, nodes.length, renderStart]);
+  }, [config.caseId, config.count, config.mode, config.policy, generationMs, renderStart]);
 
   const onViewerOpen = useCallback(() => {
     viewerReadyRef.current = true;
@@ -180,7 +187,7 @@ function BenchmarkApp({
       <header className="benchmark-header">
         <div>
           <strong>{config.caseId}</strong>
-          <span>{nodes.length.toLocaleString()} interactive SVG shapes · {config.mode}</span>
+          <span>{nodes.length.toLocaleString()} source shapes · {config.mode} · policy {config.policy}</span>
         </div>
         <button
           type="button"
@@ -200,7 +207,8 @@ function BenchmarkApp({
           highlightedKeys={EMPTY_KEYS}
           focusKey={null}
           alignment={alignment}
-          interactiveBudget={nodes.length}
+          interactiveBudget={config.policy === "all" ? nodes.length : undefined}
+          renderPolicy={config.policy}
           onViewerOpen={onViewerOpen}
           onSelect={setSelectedKey}
         />
@@ -219,10 +227,12 @@ window.__HF_PAGE_VIEWER_BENCHMARK__ = {
   caseId: config.caseId,
   requestedShapes: config.count,
   mode: config.mode,
+  policy: config.policy,
   generationMs,
   renderStart,
   initialRenderMs: null,
   shapeCount: null,
+  lod: null,
   ready: false,
   osdReady: false,
 };
