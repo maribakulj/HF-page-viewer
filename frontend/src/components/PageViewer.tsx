@@ -7,7 +7,7 @@ import {
   geometryBounds,
   geometryIntersectsWindow,
   overscannedWindow,
-  renderLodForImageZoom,
+  renderLodForRelativeZoom,
   shouldRenderNode,
 } from "../renderPolicy";
 import type { RenderLod, RenderWindow } from "../renderPolicy";
@@ -17,13 +17,13 @@ const INTERACTIVE_SVG_BUDGET = 6000;
 
 type RenderViewState = {
   lod: RenderLod;
-  imageZoom: number | null;
+  relativeZoom: number | null;
   window: RenderWindow | null;
 };
 
 const DEFAULT_RENDER_VIEW: RenderViewState = {
   lod: "overview",
-  imageZoom: null,
+  relativeZoom: null,
   window: null,
 };
 
@@ -44,9 +44,9 @@ function renderWindowEqual(left: RenderWindow | null, right: RenderWindow | null
 
 function renderViewEqual(left: RenderViewState, right: RenderViewState): boolean {
   return left.lod === right.lod
-    && (left.imageZoom == null || right.imageZoom == null
-      ? left.imageZoom === right.imageZoom
-      : Math.abs(left.imageZoom - right.imageZoom) < 0.005)
+    && (left.relativeZoom == null || right.relativeZoom == null
+      ? left.relativeZoom === right.relativeZoom
+      : Math.abs(left.relativeZoom - right.relativeZoom) < 0.005)
     && renderWindowEqual(left.window, right.window);
 }
 
@@ -205,10 +205,12 @@ export function PageViewer({
         viewportBounds.height,
         true,
       );
-      const imageZoom = item.viewportToImageZoom(viewer.viewport.getZoom(true));
+      const homeZoom = viewer.viewport.getHomeZoom();
+      const currentZoom = viewer.viewport.getZoom(true);
+      const relativeZoom = homeZoom > 0 ? currentZoom / homeZoom : 1;
       const next: RenderViewState = {
-        lod: renderLodForImageZoom(imageZoom),
-        imageZoom,
+        lod: renderLodForRelativeZoom(relativeZoom),
+        relativeZoom,
         window: overscannedWindow({
           x: imageBounds.x,
           y: imageBounds.y,
@@ -383,6 +385,7 @@ export function PageViewer({
           preserveAspectRatio="none"
           aria-label="OCR layout overlay"
           data-render-lod={effectiveLod}
+          data-render-relative-zoom={renderView.relativeZoom ?? ""}
           data-rendered-shapes={renderedNodes.length}
         >
           {renderedNodes.map((node) => (
