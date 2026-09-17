@@ -2,34 +2,43 @@
 
 Production Space: `Ma-Ri-Ba-Ku/Inspector-ALTO`.
 
-The application is deployed as a **Hugging Face Static Space**. No Docker, Gradio compute runtime, or paid Hugging Face plan is required for the application itself.
+The application is deployed as a **Hugging Face Static Space**, but Hugging Face does **not** build the frontend. Static Space hosting is free, while the optional `app_build_command` path launches a Hugging Face Job and currently requires credits. To keep the production deployment free of Hugging Face build credits, GitHub Actions compiles the application first and uploads only the generated static files.
 
 ## Deployment flow
 
 `main` is the source of truth. `.github/workflows/deploy-hf-space.yml`:
 
-1. installs the frontend dependencies;
-2. runs the browser test suite;
-3. builds the Vite static application;
-4. verifies `dist/index.html` exists;
-5. obtains a short-lived Hugging Face credential through GitHub Actions OIDC;
-6. synchronizes the deployable source to `Ma-Ri-Ba-Ku/Inspector-ALTO`.
+1. validates the Hugging Face README metadata;
+2. installs the frontend dependencies on GitHub Actions;
+3. runs the browser test suite;
+4. builds the Vite static application on GitHub Actions;
+5. verifies `dist/index.html` exists;
+6. assembles a clean deployment tree containing the Hugging Face README, license, and the contents of `dist/` at repository root;
+7. obtains a short-lived Hugging Face credential through GitHub Actions OIDC;
+8. synchronizes the prebuilt files to `Ma-Ri-Ba-Ku/Inspector-ALTO`.
 
-Only these paths are published to the Space repository:
+The deployed Space therefore contains roughly:
 
-- `README.md`;
-- `LICENSE`;
-- `frontend/**`.
+```text
+README.md
+LICENSE
+index.html
+assets/
+  ...
+```
 
-The upload uses `--delete="*"`, so stale deployment files such as an old `Dockerfile` are removed from the Space. GitHub-only files, Python reference code, tests outside the frontend, and internal project documentation are not copied to Hugging Face.
+It does **not** contain `frontend/node_modules`, the Python reference implementation, GitHub workflows, internal documentation, or frontend source code. GitHub remains the source repository; the Hugging Face repository is a deployment artifact.
 
-Hugging Face then executes the Static Space build declared in the README frontmatter:
+The Space frontmatter is intentionally build-free:
 
 ```yaml
 sdk: static
-app_build_command: cd frontend && npm install --no-audit --no-fund && npm run build
-app_file: dist/index.html
+app_file: index.html
 ```
+
+`app_build_command` must remain absent. `scripts/validate-space-metadata.mjs` enforces this in CI so a future change cannot accidentally re-enable the credit-gated Hugging Face build job.
+
+The upload uses `--delete="*"`, so stale deployment files are removed whenever a new version is published.
 
 ## One-time Trusted Publisher configuration
 
