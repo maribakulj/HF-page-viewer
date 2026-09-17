@@ -1,0 +1,72 @@
+name: Renderer Benchmark
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - perf/svg-overlay-benchmark
+    paths:
+      - "frontend/**"
+      - ".github/workflows/renderer-benchmark.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm install --no-audit --no-fund
+
+      - name: Type-check production and benchmark source
+        working-directory: frontend
+        run: npm run build
+
+      - name: Record system Chrome
+        run: google-chrome --version
+
+      - name: Run SVG renderer benchmark
+        working-directory: frontend
+        env:
+          CHROME_BIN: /usr/bin/google-chrome
+          BENCHMARK_URL: http://127.0.0.1:4174/benchmark.html
+        run: |
+          set -euo pipefail
+          npm run dev -- --host 127.0.0.1 --port 4174 > /tmp/hf-page-viewer-benchmark-vite.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+
+          READY=0
+          for attempt in $(seq 1 40); do
+            if curl -fsS "http://127.0.0.1:4174/benchmark.html" >/dev/null; then
+              READY=1
+              break
+            fi
+            sleep 0.5
+          done
+          if [ "$READY" -ne 1 ]; then
+            cat /tmp/hf-page-viewer-benchmark-vite.log
+            exit 1
+          fi
+
+          npm run benchmark:renderer
+          cat benchmark-results/renderer.md
+
+      - name: Upload renderer benchmark report
+        uses: actions/upload-artifact@v4
+        with:
+          name: renderer-benchmark-${{ github.sha }}
+          path: frontend/benchmark-results/
+          if-no-files-found: error
+          retention-days: 30
