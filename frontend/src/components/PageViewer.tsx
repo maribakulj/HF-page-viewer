@@ -158,7 +158,7 @@ export function PageViewer({
   layers,
   selectedKey,
   highlightedKeys,
-  searchActiveKey,
+  searchActiveKey = null,
   focusKey,
   alignment,
   interactiveBudget = INTERACTIVE_SVG_BUDGET,
@@ -172,7 +172,7 @@ export function PageViewer({
   layers: LayerState;
   selectedKey: string | null;
   highlightedKeys: ReadonlySet<string>;
-  searchActiveKey: string | null;
+  searchActiveKey?: string | null;
   focusKey: string | null;
   alignment: AlignmentStatus;
   interactiveBudget?: number;
