@@ -167,3 +167,12 @@ export function buildCorrectedXml(args: {
     },
   };
 }
+
+
+export function correctedXmlFilename(sourceName: string): string {
+  const stem = sourceName
+    .replace(/\.xml$/i, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "document";
+  return `${stem}.corrected.xml`;
+}
