@@ -50,6 +50,7 @@ export default function App() {
   const [xsdValidation, setXsdValidation] = useState<BrowserXsdValidation>({ status: "idle" });
   const [pageIndex, setPageIndex] = useState(0);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [focusKey, setFocusKey] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const [layers, setLayers] = useState<LayerState>(defaultLayers);
@@ -66,6 +67,7 @@ export default function App() {
     setParseError(null);
     setXsdValidation({ status: "idle" });
     setSelectedKey(null);
+    setFocusKey(null);
     setSearchQuery("");
     setActiveSearchIndex(0);
     setPageIndex(0);
@@ -122,6 +124,7 @@ export default function App() {
     if (!activeSearchMatch) return;
     if (activeSearchMatch.pageIndex !== pageIndex) setPageIndex(activeSearchMatch.pageIndex);
     setSelectedKey(activeSearchMatch.nodeKey);
+    setFocusKey(activeSearchMatch.nodeKey);
   }, [activeSearchMatch, pageIndex]);
 
   const sourceSemanticValidationReport = useMemo(() => document ? applyAdditionalValidation(
@@ -168,7 +171,14 @@ export default function App() {
   const selectValidationFinding = (finding: ValidationFinding): void => {
     const findingPage = finding.target.page_index;
     if (findingPage != null && findingPage >= 0 && findingPage < (workingDocument?.pages.length ?? 0)) setPageIndex(findingPage);
-    if (finding.target.node_key) setSelectedKey(finding.target.node_key);
+    if (finding.target.node_key) {
+      setSelectedKey(finding.target.node_key);
+      setFocusKey(finding.target.node_key);
+    }
+  };
+  const selectAndFocus = (key: string): void => {
+    setSelectedKey(key);
+    setFocusKey(key);
   };
   const moveSearch = (delta: number): void => { if (searchMatches.length) setActiveSearchIndex((current) => wrapSearchIndex(current + delta, searchMatches.length)); };
   const commitWordEdit = (value: string): void => {
@@ -225,9 +235,9 @@ export default function App() {
           <div className="source-summary"><span>{activeImage ? `${activeImage.width} × ${activeImage.height}px · ${iiifActive ? "IIIF" : "local"}` : "No viewer image"}</span><span>{page ? `${page.width ?? "?"} × ${page.height ?? "?"} ${page.measurement_unit}` : "No XML page"}</span></div>
         </aside>
         <section className="viewer-column">
-          {activeImage ? <><div className={`alignment-strip alignment-${alignment.kind}`}>{alignment.message}</div><PageViewer image={activeImage} page={page} nodes={nodes} layers={layers} selectedKey={selectedKey} highlightedKeys={searchHighlightKeys} focusKey={activeSearchKey} alignment={alignment} onSelect={setSelectedKey} /></> : <div className="viewer-empty"><div><p className="eyebrow">Browser-side workflow</p><h2>Load a page image or IIIF source</h2><p>Local files stay in your browser. Public IIIF resources are fetched directly from their provider without an application proxy.</p></div></div>}
+          {activeImage ? <><div className={`alignment-strip alignment-${alignment.kind}`}>{alignment.message}</div><PageViewer image={activeImage} page={page} nodes={nodes} layers={layers} selectedKey={selectedKey} highlightedKeys={searchHighlightKeys} searchActiveKey={activeSearchKey} focusKey={focusKey} alignment={alignment} onSelect={setSelectedKey} /></> : <div className="viewer-empty"><div><p className="eyebrow">Browser-side workflow</p><h2>Load a page image or IIIF source</h2><p>Local files stay in your browser. Public IIIF resources are fetched directly from their provider without an application proxy.</p></div></div>}
         </section>
-        <Inspector document={workingDocument} page={page} image={activeImage} counts={counts} selected={selected} selectedKey={selectedKey} alignment={alignment} validationReport={validationReport} xsdValidation={xsdValidation} onSelect={setSelectedKey} onValidationSelect={selectValidationFinding} />
+        <Inspector document={workingDocument} page={page} image={activeImage} counts={counts} selected={selected} selectedKey={selectedKey} alignment={alignment} validationReport={validationReport} xsdValidation={xsdValidation} onSelect={selectAndFocus} onValidationSelect={selectValidationFinding} />
       </section>
     </main>
   );

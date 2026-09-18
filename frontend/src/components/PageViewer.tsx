@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import OpenSeadragon from "openseadragon";
 
 import { flattenReadingOrderRefs, geometryCenter } from "../pageModel";
 import type { AlignmentStatus } from "../pageModel";
 import {
   boundsIntersect,
-  geometryBounds,
   geometryIntersectsWindow,
   overscannedWindow,
   renderLodForRelativeZoom,
@@ -13,6 +12,7 @@ import {
 } from "../renderPolicy";
 import type { RenderLod, RenderWindow } from "../renderPolicy";
 import type { ImageInfo, LayerState, OverlayNode, PageDTO } from "../types";
+import { focusImageRectForNode } from "../viewerFocus";
 import {
   viewerOpenFailureCode,
   viewerSourceKind,
@@ -158,6 +158,7 @@ export function PageViewer({
   layers,
   selectedKey,
   highlightedKeys,
+  searchActiveKey,
   focusKey,
   alignment,
   interactiveBudget = INTERACTIVE_SVG_BUDGET,
@@ -171,6 +172,7 @@ export function PageViewer({
   layers: LayerState;
   selectedKey: string | null;
   highlightedKeys: ReadonlySet<string>;
+  searchActiveKey: string | null;
   focusKey: string | null;
   alignment: AlignmentStatus;
   interactiveBudget?: number;
@@ -182,7 +184,7 @@ export function PageViewer({
   const overlayRef = useRef<SVGSVGElement | null>(null);
   const viewerRef = useRef<OpenSeadragon.Viewer | null>(null);
   const syncOverlayRef = useRef<() => void>(() => undefined);
-  const focusSearchRef = useRef<() => void>(() => undefined);
+  const focusTargetRef = useRef<() => void>(() => undefined);
   const updateRenderViewRef = useRef<() => void>(() => undefined);
   const pageRef = useRef<PageDTO | null>(page);
   const alignmentRef = useRef(alignment);
@@ -269,7 +271,7 @@ export function PageViewer({
       setViewerDiagnostic(null);
       syncOverlay();
       updateRenderView();
-      focusSearchRef.current();
+      focusTargetRef.current();
       onViewerOpenRef.current?.();
     };
     const onAnimationFinish = () => {
@@ -306,7 +308,7 @@ export function PageViewer({
 
     return () => {
       syncOverlayRef.current = () => undefined;
-      focusSearchRef.current = () => undefined;
+      focusTargetRef.current = () => undefined;
       updateRenderViewRef.current = () => undefined;
       viewerRef.current = null;
       viewer.destroy();
@@ -322,39 +324,28 @@ export function PageViewer({
     return () => cancelAnimationFrame(frame);
   }, [alignment.canRender, page]);
 
-  useEffect(() => {
-    const focusSearch = () => {
-      if (!focusKey || !page || !alignment.canRender || !page.width || !page.height) return;
-      const viewer = viewerRef.current;
-      const item = viewer?.world.getItemAt(0);
-      const node = nodes.find((candidate) => candidate.key === focusKey);
-      const bounds = geometryBounds(node?.geometry ?? null);
-      if (!viewer || !item || !bounds) return;
+  const focusNode = useCallback((key: string | null): void => {
+    if (!key || !page || !alignment.canRender) return;
+    const viewer = viewerRef.current;
+    const item = viewer?.world.getItemAt(0);
+    const node = nodes.find((candidate) => candidate.key === key) ?? null;
+    const imageRect = focusImageRectForNode(node, page, image.width, image.height);
+    if (!viewer || !item || !imageRect) return;
 
-      const scaleX = image.width / page.width;
-      const scaleY = image.height / page.height;
-      const x = bounds.minX * scaleX;
-      const y = bounds.minY * scaleY;
-      const width = Math.max((bounds.maxX - bounds.minX) * scaleX, 1);
-      const height = Math.max((bounds.maxY - bounds.minY) * scaleY, 1);
-      const padX = Math.max(width * 2, image.width * 0.006);
-      const padY = Math.max(height * 4, image.height * 0.006);
-      const left = Math.max(0, x - padX);
-      const top = Math.max(0, y - padY);
-      const right = Math.min(image.width, x + width + padX);
-      const bottom = Math.min(image.height, y + height + padY);
-      const viewportBounds = item.imageToViewportRectangle(
-        left,
-        top,
-        Math.max(right - left, 1),
-        Math.max(bottom - top, 1),
-      );
-      viewer.viewport.fitBoundsWithConstraints(viewportBounds, false);
-    };
-    focusSearchRef.current = focusSearch;
-    const frame = requestAnimationFrame(focusSearch);
+    const viewportBounds = item.imageToViewportRectangle(
+      imageRect.x,
+      imageRect.y,
+      imageRect.width,
+      imageRect.height,
+    );
+    viewer.viewport.fitBoundsWithConstraints(viewportBounds, false);
+  }, [alignment.canRender, image.height, image.width, nodes, page]);
+
+  useEffect(() => {
+    focusTargetRef.current = () => focusNode(focusKey);
+    const frame = requestAnimationFrame(() => focusNode(focusKey));
     return () => cancelAnimationFrame(frame);
-  }, [alignment.canRender, focusKey, image.height, image.width, nodes, page]);
+  }, [focusKey, focusNode]);
 
   const safeInteractiveBudget = Math.max(1, Math.floor(interactiveBudget));
   const effectiveLod: RenderLod = renderPolicy === "all" ? "glyphs" : renderView.lod;
@@ -365,9 +356,9 @@ export function PageViewer({
       layers,
       lod: effectiveLod,
       window: effectiveWindow,
-      forced: highlightedKeys.has(node.key) || node.key === focusKey || node.key === selectedKey,
+      forced: highlightedKeys.has(node.key) || node.key === searchActiveKey || node.key === focusKey || node.key === selectedKey,
     })),
-    [effectiveLod, effectiveWindow, focusKey, highlightedKeys, layers, nodes, selectedKey],
+    [effectiveLod, effectiveWindow, focusKey, highlightedKeys, layers, nodes, searchActiveKey, selectedKey],
   );
   const renderedNodes = useMemo(() => {
     if (visibleNodes.length <= safeInteractiveBudget) return visibleNodes;
@@ -379,6 +370,7 @@ export function PageViewer({
       result.push(node);
     };
 
+    add(visibleNodes.find((node) => node.key === searchActiveKey));
     add(visibleNodes.find((node) => node.key === focusKey));
     add(visibleNodes.find((node) => node.key === selectedKey));
     for (const node of visibleNodes) {
@@ -390,7 +382,7 @@ export function PageViewer({
       if (result.length >= safeInteractiveBudget) break;
     }
     return result;
-  }, [focusKey, highlightedKeys, safeInteractiveBudget, selectedKey, visibleNodes]);
+  }, [focusKey, highlightedKeys, safeInteractiveBudget, searchActiveKey, selectedKey, visibleNodes]);
   const budgetExceeded = visibleNodes.length > renderedNodes.length;
 
   const renderedBaselines = useMemo(() => {
@@ -468,7 +460,7 @@ export function PageViewer({
               node={node}
               selected={node.key === selectedKey}
               searchMatch={highlightedKeys.has(node.key)}
-              searchActive={node.key === focusKey}
+              searchActive={node.key === searchActiveKey}
               onSelect={onSelect}
             />
           ))}
@@ -514,6 +506,9 @@ export function PageViewer({
         </button>
         <button type="button" onClick={() => viewerRef.current?.viewport.goHome()} aria-label="Fit page">
           Fit
+        </button>
+        <button type="button" disabled={!selectedKey} onClick={() => focusNode(selectedKey)} aria-label="Locate selected element">
+          Locate
         </button>
       </div>
 
