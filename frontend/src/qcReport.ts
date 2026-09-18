@@ -7,15 +7,18 @@ import { resolveIiifSelection } from "./iiifViewer";
 import { countPageElements } from "./pageModel";
 import type { ImageInfo, PageDocumentDTO } from "./types";
 import type { WordTextEdit } from "./wordEdits";
-import type { CombinedValidationReport } from "./xsdFindings";
+import { exportSchemaValidation } from "./xsdFindings";
+import type { CombinedValidationReport, SchemaValidationExport } from "./xsdFindings";
+import type { BrowserXsdValidation } from "./xsdValidationProtocol";
 
-export const QC_REPORT_VERSION = "1.3.0";
-export const QC_GENERATOR_VERSION = "0.4.0";
+export const QC_REPORT_VERSION = "1.4.0";
+export const QC_GENERATOR_VERSION = "0.5.0";
 
 export type CorrectedOutputEvidence = {
   filename: string;
   fingerprint: FileFingerprint;
   result: CorrectedXmlResult;
+  xsdValidation: BrowserXsdValidation;
 };
 
 export type QcReportInput = {
@@ -53,6 +56,7 @@ export type QcReport = {
       skipped_edits: number;
       warnings: CorrectedXmlResult["warnings"];
       preservation: CorrectedXmlResult["preservation"];
+      schema_validation: SchemaValidationExport;
     };
   };
   document: {
@@ -104,6 +108,7 @@ export function buildQcReport(input: QcReportInput): QcReport {
         skipped_edits: correctedOutput.result.skipped_edits,
         warnings: correctedOutput.result.warnings,
         preservation: correctedOutput.result.preservation,
+        schema_validation: exportSchemaValidation(correctedOutput.xsdValidation),
       } : null,
     },
     document: {

@@ -42,7 +42,7 @@ The strategy is `patch-original-dom`: unedited XML elements and extensions are p
 
 Semantic and IIIF validation run against the in-memory working copy after every applied operation.
 
-Normative XSD shown in the UI still refers to the original uploaded XML. Corrected-output XSD validation is a separate future gate; the UI therefore labels the current status `Source XSD valid`.
+Normative XSD status is now split explicitly: `Source XSD` validates the uploaded original bytes, while `Corrected XSD` validates the serialized corrected XML against the same exact pinned schema when available.
 
 ## QC report
 
@@ -60,6 +60,5 @@ The source XML SHA-256 continues to identify the original uploaded bytes. The co
 
 ## Remaining correction work
 
-- validate the corrected serialized XML against the exact pinned XSD when available;
-- before/after validation summaries;
+- before/after semantic-validation summaries;
 - later, if justified by corpus needs, polygon/baseline editing rather than lossy rectangle conversion.

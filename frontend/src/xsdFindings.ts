@@ -61,7 +61,7 @@ function invalidSchemaFindings(validation: Extract<BrowserXsdValidation, { statu
   }));
 }
 
-function schemaExport(validation: BrowserXsdValidation): SchemaValidationExport {
+export function exportSchemaValidation(validation: BrowserXsdValidation): SchemaValidationExport {
   if (validation.status === "idle" || validation.status === "validating") {
     return {
       status: "pending",
@@ -105,6 +105,6 @@ export function combineValidationReport(base: ValidationReport, xsd: BrowserXsdV
     validator_version: COMBINED_VALIDATOR_VERSION,
     summary: summarize(findings),
     findings,
-    schema_validation: schemaExport(xsd),
+    schema_validation: exportSchemaValidation(xsd),
   };
 }

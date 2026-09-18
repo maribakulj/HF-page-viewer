@@ -140,9 +140,9 @@ export default function App() {
     pageIndex,
     wordTextEdits: wordEdits,
     bboxEdits,
-    correctedOutput: correctedXml.result && correctedXml.fingerprint && correctedXml.filename ? { result: correctedXml.result, fingerprint: correctedXml.fingerprint, filename: correctedXml.filename } : null,
+    correctedOutput: correctedXml.result && correctedXml.fingerprint && correctedXml.filename ? { result: correctedXml.result, fingerprint: correctedXml.fingerprint, filename: correctedXml.filename, xsdValidation: correctedXml.xsdValidation } : null,
     iiif: { loadedUrl: iiif.loadedUrl, inspection: iiif.inspection, selection: iiif.selection, resolvedService: iiif.resolvedService },
-  }) : null, [activeImage, bboxEdits, correctedXml.filename, correctedXml.fingerprint, correctedXml.result, workingDocument, iiif.inspection, iiif.loadedUrl, iiif.resolvedService, iiif.selection, imageFingerprint.fingerprint, pageIndex, validationReport, wordEdits, xmlFingerprint.fingerprint]);
+  }) : null, [activeImage, bboxEdits, correctedXml.filename, correctedXml.fingerprint, correctedXml.result, correctedXml.xsdValidation, workingDocument, iiif.inspection, iiif.loadedUrl, iiif.resolvedService, iiif.selection, imageFingerprint.fingerprint, pageIndex, validationReport, wordEdits, xmlFingerprint.fingerprint]);
   const fingerprinting = xmlFingerprint.hashing || imageFingerprint.hashing;
   const fingerprintError = xmlFingerprint.error ?? imageFingerprint.error;
 
