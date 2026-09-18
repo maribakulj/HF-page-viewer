@@ -1,61 +1,40 @@
 # Reproducible QC report
 
-HF Page Viewer can export a machine-readable quality-control report for a parsed ALTO/PAGE document without uploading local source files.
+HF Page Viewer exports a machine-readable quality-control report for ALTO/PAGE inspection without uploading local source files.
 
 ## Purpose
 
-The report is designed to be consumed by humans, notebooks, CI jobs and future agents. It is intentionally independent from React component state.
+The report is designed for humans, notebooks, CI jobs and future agents. It records source identity, deterministic checks and the exact correction artefact when one has been produced.
 
-The report records:
+The report includes:
 
 - report schema version and UTC generation timestamp;
 - generator identity/version;
 - document format, namespace and source version;
-- page dimensions, measurement units and normalized region/line/word/glyph counts;
-- local XML SHA-256 fingerprint, file name, byte size and media type;
-- local image SHA-256 fingerprint when a local raster is loaded;
-- active viewer image dimensions/source kind;
-- selected IIIF resource, Canvas, painting image and Image API service identifiers when present;
-- selected IIIF Canvas/image dimensions when known;
-- the complete deterministic validation report, including validator version, XSD status and findings.
+- page dimensions and normalized region/line/word/glyph counts;
+- original XML SHA-256 fingerprint;
+- local image SHA-256 fingerprint when present;
+- active image and IIIF identifiers/dimensions;
+- complete deterministic validation output;
+- explicit working-copy text/bbox operations;
+- corrected XML fingerprint, export warnings and preservation metadata when a corrected file exists.
 
 ## Fingerprints
 
-Local file fingerprints use the browser Web Crypto API and SHA-256. Bytes are read locally with `File.arrayBuffer()`; hashing does not upload the source file.
+Local fingerprints use browser Web Crypto SHA-256. Source files and corrected XML are hashed in-browser.
 
-A fingerprint is represented as:
-
-```json
-{
-  "algorithm": "sha256",
-  "hex": "…",
-  "bytes": 12345,
-  "name": "page.xml",
-  "media_type": "application/xml"
-}
-```
-
-Remote IIIF resources are identified by their normalized public identifiers rather than downloaded and hashed as part of this report.
+A source and corrected artefact deliberately have separate fingerprints. The source hash never pretends to identify edited bytes.
 
 ## Versioning
 
-`report_version` versions the JSON contract. `generator.version` versions the report generator implementation. `validation.validator_version` continues to version deterministic validation behavior separately.
+`report_version` versions the JSON contract. `generator.version` versions the report generator. `validation.validator_version` versions deterministic validation separately.
 
-Changing validation rules therefore does not silently redefine the QC report envelope, and changing the report envelope does not pretend to be a validator change.
+Current corrected-output support is introduced in QC report **1.3.0**.
 
 ## Reproducibility boundary
 
-`generated_at` is intentionally non-deterministic. For the same normalized inputs, source fingerprints and validator output, all other report fields are deterministic except where a remote provider itself supplies changing identifiers or metadata.
+`generated_at` is intentionally non-deterministic. Other report fields are deterministic for the same normalized inputs, source fingerprints, edit streams, corrected serialization and validator output, except for metadata supplied by changing remote providers.
 
-The report is evidence about the inspected inputs and the checks performed. It is not a cryptographic signature or a certification by the source institution.
+Corrected XML uses a source-preserving DOM patch strategy. Unedited elements are preserved structurally, but serialization is not claimed to be byte-identical because XML formatting may be normalized.
 
-## Future correction workflow
-
-The correction tranche will preserve the original source as immutable input and record edits as an explicit change set. Corrected exports and QC reports should eventually link:
-
-- original source fingerprint;
-- applied edit operations;
-- corrected document fingerprint;
-- before/after validation summaries.
-
-This keeps Inspector-ALTO useful as a deterministic control layer behind human and agentic OCR workflows without turning it into a full OCR project-management platform.
+The report is evidence about inspected inputs and performed checks. It is not a cryptographic signature or institutional certification.
