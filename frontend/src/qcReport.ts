@@ -6,13 +6,14 @@ import type { IiifSelection } from "./iiifViewer";
 import { resolveIiifSelection } from "./iiifViewer";
 import { countPageElements } from "./pageModel";
 import type { ImageInfo, PageDocumentDTO } from "./types";
+import type { ValidationComparison } from "./validationComparison";
 import type { WordTextEdit } from "./wordEdits";
 import { exportSchemaValidation } from "./xsdFindings";
 import type { CombinedValidationReport, SchemaValidationExport } from "./xsdFindings";
 import type { BrowserXsdValidation } from "./xsdValidationProtocol";
 
-export const QC_REPORT_VERSION = "1.4.0";
-export const QC_GENERATOR_VERSION = "0.5.0";
+export const QC_REPORT_VERSION = "1.5.0";
+export const QC_GENERATOR_VERSION = "0.6.0";
 
 export type CorrectedOutputEvidence = {
   filename: string;
@@ -30,6 +31,7 @@ export type QcReportInput = {
   pageIndex: number;
   wordTextEdits?: WordTextEdit[];
   bboxEdits?: BBoxEdit[];
+  validationComparison?: ValidationComparison | null;
   correctedOutput?: CorrectedOutputEvidence | null;
   iiif: {
     loadedUrl: string | null;
@@ -81,6 +83,7 @@ export type QcReport = {
     image_dimensions: { width: number | null; height: number | null } | null;
   };
   validation: CombinedValidationReport;
+  validation_comparison: ValidationComparison | null;
 };
 
 export function buildQcReport(input: QcReportInput): QcReport {
@@ -149,6 +152,7 @@ export function buildQcReport(input: QcReportInput): QcReport {
       } : null,
     } : null,
     validation: input.validation,
+    validation_comparison: input.validationComparison ?? null,
   };
 }
 

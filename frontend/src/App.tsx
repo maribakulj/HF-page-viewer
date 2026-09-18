@@ -25,6 +25,7 @@ import { useIiifSource } from "./useIiifSource";
 import { useLocalImage } from "./useLocalImage";
 import { validateDocument } from "./validation";
 import type { ValidationFinding } from "./validation";
+import { compareValidationReports } from "./validationComparison";
 import { searchDocumentWords, wrapSearchIndex } from "./wordSearch";
 import { applyWordTextEdits, createWordTextEdit } from "./wordEdits";
 import type { WordTextEdit } from "./wordEdits";
@@ -123,9 +124,26 @@ export default function App() {
     setSelectedKey(activeSearchMatch.nodeKey);
   }, [activeSearchMatch, pageIndex]);
 
+  const sourceSemanticValidationReport = useMemo(() => document ? applyAdditionalValidation(
+    validateDocument(document, { image, imagePageIndex: image ? pageIndex : null }), document,
+  ) : null, [document, image, pageIndex]);
+  const sourceComparisonReport = useMemo(() => document && sourceSemanticValidationReport ? applyIiifValidation(
+    sourceSemanticValidationReport, document, pageIndex, iiif.inspection, iiif.selection, iiif.resolvedService,
+  ) : sourceSemanticValidationReport, [document, iiif.inspection, iiif.resolvedService, iiif.selection, pageIndex, sourceSemanticValidationReport]);
+
   const semanticValidationReport = useMemo(() => workingDocument ? applyAdditionalValidation(
     validateDocument(workingDocument, { image, imagePageIndex: image ? pageIndex : null }), workingDocument,
   ) : null, [workingDocument, image, pageIndex]);
+  const workingComparisonReport = useMemo(() => workingDocument && semanticValidationReport ? applyIiifValidation(
+    semanticValidationReport, workingDocument, pageIndex, iiif.inspection, iiif.selection, iiif.resolvedService,
+  ) : semanticValidationReport, [workingDocument, iiif.inspection, iiif.resolvedService, iiif.selection, pageIndex, semanticValidationReport]);
+  const validationComparison = useMemo(
+    () => sourceComparisonReport && workingComparisonReport
+      ? compareValidationReports(sourceComparisonReport, workingComparisonReport)
+      : null,
+    [sourceComparisonReport, workingComparisonReport],
+  );
+
   const schemaValidationReport = useMemo(() => semanticValidationReport ? combineValidationReport(semanticValidationReport, xsdValidation) : null, [semanticValidationReport, xsdValidation]);
   const validationReport = useMemo(() => workingDocument && schemaValidationReport ? applyIiifValidation(
     schemaValidationReport, workingDocument, pageIndex, iiif.inspection, iiif.selection, iiif.resolvedService,
@@ -140,9 +158,10 @@ export default function App() {
     pageIndex,
     wordTextEdits: wordEdits,
     bboxEdits,
+    validationComparison,
     correctedOutput: correctedXml.result && correctedXml.fingerprint && correctedXml.filename ? { result: correctedXml.result, fingerprint: correctedXml.fingerprint, filename: correctedXml.filename, xsdValidation: correctedXml.xsdValidation } : null,
     iiif: { loadedUrl: iiif.loadedUrl, inspection: iiif.inspection, selection: iiif.selection, resolvedService: iiif.resolvedService },
-  }) : null, [activeImage, bboxEdits, correctedXml.filename, correctedXml.fingerprint, correctedXml.result, correctedXml.xsdValidation, workingDocument, iiif.inspection, iiif.loadedUrl, iiif.resolvedService, iiif.selection, imageFingerprint.fingerprint, pageIndex, validationReport, wordEdits, xmlFingerprint.fingerprint]);
+  }) : null, [activeImage, bboxEdits, correctedXml.filename, correctedXml.fingerprint, correctedXml.result, correctedXml.xsdValidation, workingDocument, iiif.inspection, iiif.loadedUrl, iiif.resolvedService, iiif.selection, imageFingerprint.fingerprint, pageIndex, validationComparison, validationReport, wordEdits, xmlFingerprint.fingerprint]);
   const fingerprinting = xmlFingerprint.hashing || imageFingerprint.hashing;
   const fingerprintError = xmlFingerprint.error ?? imageFingerprint.error;
 

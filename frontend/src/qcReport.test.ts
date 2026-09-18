@@ -43,9 +43,10 @@ describe("buildQcReport", () => {
       activeImage: { url: "blob:test", name: "page.jpg", width: 1000, height: 2000, source_kind: "local" },
       pageIndex: 0, iiif, generatedAt: "2026-09-17T18:00:00.000Z",
     });
-    expect(report.report_version).toBe("1.4.0");
+    expect(report.report_version).toBe("1.5.0");
     expect(report.working_copy).toEqual({ modified: false, word_text_edits: [], bbox_edits: [], corrected_output: null });
     expect(report.document.pages[0]).toMatchObject({ regions: 1, lines: 1, words: 1, glyphs: 0 });
+    expect(report.validation_comparison).toBeNull();
     expect(qcReportFilename(report)).toBe("sample.qc.json");
   });
 
@@ -90,5 +91,30 @@ describe("buildQcReport", () => {
       skipped_edits: 0,
       schema_validation: { status: "valid", schema_id: "alto-4.4" },
     });
+  });
+  it("records semantic+IIIF before-after validation comparison", () => {
+    const comparison = {
+      scope: "semantic+iiif" as const,
+      before: { errors: 2, warnings: 1, info: 0, total: 3 },
+      after: { errors: 1, warnings: 1, info: 1, total: 3 },
+      delta: { errors: -1, warnings: 0, info: 1, total: 0 },
+      by_rule: [
+        { rule_id: "GEOM.OUT_OF_BOUNDS", before: 2, after: 1, delta: -1 },
+        { rule_id: "META.MISSING_SOURCE_IMAGE", before: 0, after: 1, delta: 1 },
+      ],
+    };
+    const report = buildQcReport({
+      document,
+      validation,
+      xmlFingerprint: null,
+      imageFingerprint: null,
+      activeImage: null,
+      pageIndex: 0,
+      validationComparison: comparison,
+      iiif,
+      generatedAt: "2026-09-17T18:00:00.000Z",
+    });
+
+    expect(report.validation_comparison).toEqual(comparison);
   });
 });
