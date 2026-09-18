@@ -5,6 +5,7 @@ import { parseDocumentFile } from "./api";
 import { applyBBoxEdits, createBBoxEdit } from "./bboxEdits";
 import type { BBoxEdit } from "./bboxEdits";
 import { BBoxEditPanel } from "./components/BBoxEditPanel";
+import { CorrectedXmlPanel } from "./components/CorrectedXmlPanel";
 import { FileDrop } from "./components/FileDrop";
 import { IiifSourcePanel } from "./components/IiifSourcePanel";
 import { Inspector } from "./components/Inspector";
@@ -18,6 +19,7 @@ import { assessAlignment, countPageElements, flattenPage } from "./pageModel";
 import { buildQcReport } from "./qcReport";
 import { resolveSchema } from "./schemaRegistry";
 import type { BBoxDTO, LayerState, PageDocumentDTO } from "./types";
+import { useCorrectedXmlExport } from "./useCorrectedXmlExport";
 import { useFileFingerprint } from "./useFileFingerprint";
 import { useIiifSource } from "./useIiifSource";
 import { useLocalImage } from "./useLocalImage";
@@ -128,6 +130,7 @@ export default function App() {
   const validationReport = useMemo(() => workingDocument && schemaValidationReport ? applyIiifValidation(
     schemaValidationReport, workingDocument, pageIndex, iiif.inspection, iiif.selection, iiif.resolvedService,
   ) : schemaValidationReport, [workingDocument, iiif.inspection, iiif.resolvedService, iiif.selection, pageIndex, schemaValidationReport]);
+  const correctedXml = useCorrectedXmlExport({ sourceFile: xmlFile, document, wordTextEdits: wordEdits, bboxEdits });
   const qcReport = useMemo(() => workingDocument && validationReport ? buildQcReport({
     document: workingDocument,
     validation: validationReport,
@@ -137,8 +140,9 @@ export default function App() {
     pageIndex,
     wordTextEdits: wordEdits,
     bboxEdits,
+    correctedOutput: correctedXml.result && correctedXml.fingerprint && correctedXml.filename ? { result: correctedXml.result, fingerprint: correctedXml.fingerprint, filename: correctedXml.filename } : null,
     iiif: { loadedUrl: iiif.loadedUrl, inspection: iiif.inspection, selection: iiif.selection, resolvedService: iiif.resolvedService },
-  }) : null, [activeImage, bboxEdits, workingDocument, iiif.inspection, iiif.loadedUrl, iiif.resolvedService, iiif.selection, imageFingerprint.fingerprint, pageIndex, validationReport, wordEdits, xmlFingerprint.fingerprint]);
+  }) : null, [activeImage, bboxEdits, correctedXml.filename, correctedXml.fingerprint, correctedXml.result, workingDocument, iiif.inspection, iiif.loadedUrl, iiif.resolvedService, iiif.selection, imageFingerprint.fingerprint, pageIndex, validationReport, wordEdits, xmlFingerprint.fingerprint]);
   const fingerprinting = xmlFingerprint.hashing || imageFingerprint.hashing;
   const fingerprintError = xmlFingerprint.error ?? imageFingerprint.error;
 
@@ -197,6 +201,7 @@ export default function App() {
           <WordTextEditPanel selected={selected} editCount={wordEdits.length} onCommit={commitWordEdit} onUndo={() => setWordEdits((current) => current.slice(0, -1))} onReset={() => setWordEdits([])} />
           <BBoxEditPanel selected={selected} editCount={bboxEdits.length} onCommit={commitBBoxEdit} onUndo={() => setBBoxEdits((current) => current.slice(0, -1))} onReset={() => setBBoxEdits([])} />
           <LayerControls layers={layers} onChange={setLayers} />
+          <CorrectedXmlPanel state={correctedXml} />
           <QcReportPanel report={qcReport} hashing={fingerprinting} fingerprintError={fingerprintError} />
           <div className="source-summary"><span>{activeImage ? `${activeImage.width} × ${activeImage.height}px · ${iiifActive ? "IIIF" : "local"}` : "No viewer image"}</span><span>{page ? `${page.width ?? "?"} × ${page.height ?? "?"} ${page.measurement_unit}` : "No XML page"}</span></div>
         </aside>
