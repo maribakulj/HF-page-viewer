@@ -9,6 +9,7 @@ import "./renderer.css";
 import "./iiif.css";
 import "./qcReport.css";
 import "./wordEdit.css";
+import "./correctedXml.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
