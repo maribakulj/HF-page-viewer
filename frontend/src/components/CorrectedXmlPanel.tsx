@@ -12,7 +12,7 @@ function downloadXml(xml: string, filename: string): void {
 
 export function CorrectedXmlPanel({ state }: { state: CorrectedXmlState }) {
   if (state.building) {
-    return <section className="corrected-xml-panel"><h3>Corrected XML</h3><p>Building source-preserving export and SHA-256…</p></section>;
+    return <section className="corrected-xml-panel"><h3>Corrected XML</h3><p>Building source-preserving export, SHA-256 and corrected-output XSD status…</p></section>;
   }
 
   if (state.error) {
@@ -38,12 +38,28 @@ export function CorrectedXmlPanel({ state }: { state: CorrectedXmlState }) {
         </div>
         <button type="button" onClick={() => downloadXml(result.xml, state.filename!)}>Download XML</button>
       </div>
+      <div className="corrected-xsd-status">
+        {state.xsdValidation.status === "valid" && <span className="status status-ok">Corrected XSD valid</span>}
+        {state.xsdValidation.status === "invalid" && <span className="status status-error">Corrected XSD invalid</span>}
+        {state.xsdValidation.status === "unsupported" && <span className="status status-neutral">Corrected XSD not pinned</span>}
+        {state.xsdValidation.status === "error" && <span className="status status-error">Corrected XSD validator error</span>}
+      </div>
       {state.fingerprint && (
         <dl className="compact-dl">
           <div><dt>SHA-256</dt><dd className="hash-value">{state.fingerprint.hex}</dd></div>
           <div><dt>Bytes</dt><dd>{state.fingerprint.bytes.toLocaleString()}</dd></div>
         </dl>
       )}
+      {state.xsdValidation.status === "invalid" && (
+        <details>
+          <summary>{state.xsdValidation.diagnostics.length} corrected-XSD diagnostic{state.xsdValidation.diagnostics.length === 1 ? "" : "s"}</summary>
+          <ul className="corrected-xml-warnings">
+            {state.xsdValidation.diagnostics.map((diagnostic, index) => <li key={index}>{diagnostic.message}</li>)}
+          </ul>
+        </details>
+      )}
+      {state.xsdValidation.status === "unsupported" && <p className="muted">{state.xsdValidation.reason}</p>}
+      {state.xsdValidation.status === "error" && <p className="inline-error">{state.xsdValidation.message}</p>}
       <p className="muted">Source-preserving DOM patch. Unedited elements are preserved structurally, but output is not byte-identical to the original XML.</p>
       {result.warnings.length > 0 && (
         <details>
