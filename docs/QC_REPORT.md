@@ -29,7 +29,7 @@ A source and corrected artefact deliberately have separate fingerprints. The sou
 
 `report_version` versions the JSON contract. `generator.version` versions the report generator. `validation.validator_version` versions deterministic validation separately.
 
-Current corrected-output support is introduced in QC report **1.3.0**.
+Corrected-output XSD evidence is introduced in QC report **1.4.0**. The corrected artefact now carries its own schema status (`valid`, `invalid`, `unsupported`, or engine error) independently from the source XML schema status.
 
 ## Reproducibility boundary
 
