@@ -18,3 +18,29 @@
   font-size: .7rem;
   line-height: 1.4;
 }
+
+
+.qc-delta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.qc-delta-grid > div {
+  display: grid;
+  gap: 2px;
+  padding: 7px;
+  border: 1px solid #e0e5ec;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.qc-delta-grid span,
+.qc-delta-grid small {
+  font-size: .62rem;
+  color: #69788d;
+}
+
+.qc-delta-grid strong {
+  font-size: .72rem;
+}
