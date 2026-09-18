@@ -40,6 +40,7 @@ function childElements(element: XmlElement): XmlElement[] {
 function allElements(document: XmlDocument): XmlElement[] {
   const result: XmlElement[] = [];
   const root = document.documentElement;
+  if (!root) return result;
   const visit = (element: XmlElement): void => {
     result.push(element);
     childElements(element).forEach(visit);
@@ -59,10 +60,12 @@ function resolveByPath(document: XmlDocument, path: string | null): XmlElement |
   if (!path?.startsWith("/")) return null;
   const parts = path.slice(1).split("/").filter(Boolean);
   if (!parts.length) return null;
+  const root = document.documentElement;
+  if (!root) return null;
   const rootMatch = PATH_SEGMENT_RE.exec(parts[0]);
-  if (!rootMatch || localName(document.documentElement) !== rootMatch[1]) return null;
+  if (!rootMatch || localName(root) !== rootMatch[1]) return null;
 
-  let current = document.documentElement;
+  let current: XmlElement = root;
   for (const rawPart of parts.slice(1)) {
     const match = PATH_SEGMENT_RE.exec(rawPart);
     if (!match) return null;
