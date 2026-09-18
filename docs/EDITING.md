@@ -58,7 +58,19 @@ QC report version 1.3 records:
 
 The source XML SHA-256 continues to identify the original uploaded bytes. The corrected-output hash identifies the serialized corrected artifact separately.
 
+## Before/after validation comparison
+
+The QC layer now compares the immutable source document with the current working copy using deterministic **semantic + IIIF** findings only.
+
+It records:
+- error/warning/info counts before and after;
+- signed deltas;
+- per-`rule_id` before/after counts.
+
+XSD is intentionally excluded from this numerical comparison because source XSD and corrected-output XSD describe two different serialized artefacts and already have separate evidence.
+
+A negative finding delta is descriptive, not a quality score: the application does not infer that every reduction in warnings automatically means a better OCR.
+
 ## Remaining correction work
 
-- before/after semantic-validation summaries;
 - later, if justified by corpus needs, polygon/baseline editing rather than lossy rectangle conversion.
