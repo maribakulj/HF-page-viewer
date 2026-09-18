@@ -1,15 +1,22 @@
 import type { BBoxEdit } from "./bboxEdits";
+import type { CorrectedXmlResult } from "./correctedXml";
+import type { FileFingerprint } from "./fileFingerprint";
 import type { IiifImageService, IiifInspection } from "./iiifModel";
 import type { IiifSelection } from "./iiifViewer";
 import { resolveIiifSelection } from "./iiifViewer";
 import { countPageElements } from "./pageModel";
-import type { FileFingerprint } from "./fileFingerprint";
 import type { ImageInfo, PageDocumentDTO } from "./types";
 import type { WordTextEdit } from "./wordEdits";
 import type { CombinedValidationReport } from "./xsdFindings";
 
-export const QC_REPORT_VERSION = "1.2.0";
-export const QC_GENERATOR_VERSION = "0.3.0";
+export const QC_REPORT_VERSION = "1.3.0";
+export const QC_GENERATOR_VERSION = "0.4.0";
+
+export type CorrectedOutputEvidence = {
+  filename: string;
+  fingerprint: FileFingerprint;
+  result: CorrectedXmlResult;
+};
 
 export type QcReportInput = {
   document: PageDocumentDTO;
@@ -20,6 +27,7 @@ export type QcReportInput = {
   pageIndex: number;
   wordTextEdits?: WordTextEdit[];
   bboxEdits?: BBoxEdit[];
+  correctedOutput?: CorrectedOutputEvidence | null;
   iiif: {
     loadedUrl: string | null;
     inspection: IiifInspection | null;
@@ -33,7 +41,20 @@ export type QcReport = {
   report_version: string;
   generated_at: string;
   generator: { name: "HF Page Viewer"; version: string; runtime: "browser" };
-  working_copy: { modified: boolean; word_text_edits: WordTextEdit[]; bbox_edits: BBoxEdit[] };
+  working_copy: {
+    modified: boolean;
+    word_text_edits: WordTextEdit[];
+    bbox_edits: BBoxEdit[];
+    corrected_output: null | {
+      filename: string;
+      fingerprint: FileFingerprint;
+      applied_word_text_edits: number;
+      applied_bbox_edits: number;
+      skipped_edits: number;
+      warnings: CorrectedXmlResult["warnings"];
+      preservation: CorrectedXmlResult["preservation"];
+    };
+  };
   document: {
     source_format: PageDocumentDTO["source_format"];
     source_version: string | null;
@@ -65,6 +86,8 @@ export function buildQcReport(input: QcReportInput): QcReport {
   const resolvedIiif = input.iiif.inspection
     ? resolveIiifSelection(input.iiif.inspection, input.iiif.selection, input.iiif.resolvedService)
     : null;
+  const correctedOutput = input.correctedOutput ?? null;
+
   return {
     report_version: QC_REPORT_VERSION,
     generated_at: generatedAt,
@@ -73,6 +96,15 @@ export function buildQcReport(input: QcReportInput): QcReport {
       modified: wordTextEdits.length > 0 || bboxEdits.length > 0,
       word_text_edits: wordTextEdits,
       bbox_edits: bboxEdits,
+      corrected_output: correctedOutput ? {
+        filename: correctedOutput.filename,
+        fingerprint: correctedOutput.fingerprint,
+        applied_word_text_edits: correctedOutput.result.applied_word_text_edits,
+        applied_bbox_edits: correctedOutput.result.applied_bbox_edits,
+        skipped_edits: correctedOutput.result.skipped_edits,
+        warnings: correctedOutput.result.warnings,
+        preservation: correctedOutput.result.preservation,
+      } : null,
     },
     document: {
       source_format: input.document.source_format,
