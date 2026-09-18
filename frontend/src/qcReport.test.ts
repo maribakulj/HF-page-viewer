@@ -43,8 +43,8 @@ describe("buildQcReport", () => {
       activeImage: { url: "blob:test", name: "page.jpg", width: 1000, height: 2000, source_kind: "local" },
       pageIndex: 0, iiif, generatedAt: "2026-09-17T18:00:00.000Z",
     });
-    expect(report.report_version).toBe("1.2.0");
-    expect(report.working_copy).toEqual({ modified: false, word_text_edits: [], bbox_edits: [] });
+    expect(report.report_version).toBe("1.3.0");
+    expect(report.working_copy).toEqual({ modified: false, word_text_edits: [], bbox_edits: [], corrected_output: null });
     expect(report.document.pages[0]).toMatchObject({ regions: 1, lines: 1, words: 1, glyphs: 0 });
     expect(qcReportFilename(report)).toBe("sample.qc.json");
   });
@@ -59,5 +59,34 @@ describe("buildQcReport", () => {
     expect(report.working_copy.modified).toBe(true);
     expect(report.working_copy.word_text_edits).toHaveLength(1);
     expect(report.working_copy.bbox_edits).toHaveLength(1);
+    expect(report.working_copy.corrected_output).toBeNull();
+    });
+
+  it("attests a corrected serialized output separately from the source fingerprint", () => {
+    const report = buildQcReport({
+      document, validation, xmlFingerprint: null, imageFingerprint: null, activeImage: null, pageIndex: 0,
+      wordTextEdits: [],
+      bboxEdits: [],
+      correctedOutput: {
+        filename: "sample.corrected.xml",
+        fingerprint: { algorithm: "sha256", hex: "deadbeef", bytes: 42, name: "sample.corrected.xml", media_type: "application/xml" },
+        result: {
+          xml: "<alto/>",
+          applied_word_text_edits: 1,
+          applied_bbox_edits: 0,
+          skipped_edits: 0,
+          warnings: [],
+          preservation: { strategy: "patch-original-dom", untouched_elements_preserved: true, byte_identical_roundtrip: false },
+        },
+      },
+      iiif, generatedAt: "2026-09-17T18:00:00.000Z",
+    });
+
+    expect(report.working_copy.corrected_output).toMatchObject({
+      filename: "sample.corrected.xml",
+      fingerprint: { hex: "deadbeef" },
+      applied_word_text_edits: 1,
+      skipped_edits: 0,
+    });
   });
 });
