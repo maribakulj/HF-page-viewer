@@ -54,12 +54,16 @@ h3 { margin: 18px 0 8px; font-size: 0.82rem; text-transform: uppercase; letter-s
 .viewer-frame { position: relative; min-height: 0; overflow: hidden; background: #11161e; }
 .osd-canvas { position: absolute; inset: 0; }
 .page-overlay { position: absolute; pointer-events: none; overflow: visible; z-index: 4; }
+.page-overlay.is-inspect-mode { pointer-events: auto; cursor: crosshair; }
+.page-overlay.is-inspect-mode .overlay-node { pointer-events: none; }
 .overlay-node { fill: transparent; stroke-width: 1.4; pointer-events: stroke; outline: none; }
 .overlay-node:focus, .overlay-node:hover { stroke-width: 2.4; }
 .overlay-region { stroke: #f59e0b; }
 .overlay-line { stroke: #22c55e; }
 .overlay-word { stroke: #38bdf8; }
 .overlay-glyph { stroke: #c084fc; }
+.overlay-node.is-inspect-hover { fill: rgba(56,189,248,.08); stroke-width: 2; }
+.overlay-node.is-inspect-target { fill: rgba(250,204,21,.16); stroke-width: 2.8; filter: drop-shadow(0 0 2px rgba(250,204,21,.45)); }
 .overlay-node.is-selected { stroke: #ef4444; stroke-width: 3; filter: drop-shadow(0 0 2px rgba(239,68,68,.8)); }
 .overlay-baseline { fill: none; stroke: #f43f5e; stroke-width: 1.2; stroke-dasharray: 4 3; pointer-events: none; }
 .overlay-reading-order { stroke: #f8fafc; stroke-width: 1.2; stroke-dasharray: 6 4; opacity: .85; pointer-events: none; }
@@ -69,6 +73,7 @@ h3 { margin: 18px 0 8px; font-size: 0.82rem; text-transform: uppercase; letter-s
 .viewer-controls { position: absolute; z-index: 8; top: 10px; left: 10px; display: flex; gap: 5px; }
 .viewer-controls button { min-width: 34px; height: 32px; padding: 0 8px; border: 1px solid rgba(255,255,255,.26); border-radius: 7px; color: #fff; background: rgba(15,23,42,.82); }
 .viewer-controls button:hover:not(:disabled) { background: rgba(30,41,59,.95); }
+.viewer-controls button.is-active { border-color: rgba(125,211,252,.9); color: #e0f2fe; background: rgba(3,105,161,.88); }
 .viewer-controls button:disabled { cursor: default; opacity: .45; }
 .viewer-banner { position: absolute; z-index: 8; left: 12px; right: 12px; bottom: 12px; padding: 8px 10px; border-radius: 7px; font-size: .73rem; box-shadow: 0 4px 20px rgba(0,0,0,.24); }
 .viewer-banner-warning { color: #713b20; background: rgba(255,244,224,.96); }
