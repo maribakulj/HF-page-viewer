@@ -35,11 +35,17 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: frontend
-        run: npm install --no-audit --no-fund
+        run: npm install --legacy-peer-deps --no-audit --no-fund
 
       - name: Test browser core
         working-directory: frontend
         run: npm test
+
+      - name: Test inspection browser interactions
+        working-directory: frontend
+        env:
+          CHROME_BIN: /usr/bin/google-chrome
+        run: node benchmark/inspect-interaction.mjs
 
       - name: Build static application
         working-directory: frontend
