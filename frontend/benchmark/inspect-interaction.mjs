@@ -122,6 +122,8 @@ try {
     await click(250, 370); await expectTarget("line l1", true);
     await delay(600);
     await click(250, 370); await expectTarget("region b1", true);
+    // The ALTO parser deliberately preserves the enclosing PrintSpace region.
+    await click(250, 370); await expectTarget("region anon:/alto/Layout/Page/PrintSpace", true);
     await click(250, 370); await expectTarget("word w1", true);
   });
   await scenario("native double and triple clicks select broader elements", async () => {
@@ -133,6 +135,7 @@ try {
     const before = await page.locator(".page-overlay").boundingBox();
     await move(600, 800); await page.mouse.wheel(0, -650);
     await page.waitForFunction((width) => document.querySelector(".page-overlay").getBoundingClientRect().width > width * 1.05, before.width, { timeout: 2500 });
+    await delay(400);
     const afterZoom = await page.locator(".page-overlay").boundingBox();
     const selected = await label(".overlay-node.is-selected");
     const frame = await page.locator(".viewer-frame").boundingBox();
@@ -144,10 +147,28 @@ try {
     assert.ok(Math.abs(afterDrag.x - afterZoom.x) > 10 || Math.abs(afterDrag.y - afterZoom.y) > 10, "Drag must pan the image");
     assert.deepEqual(await label(".overlay-node.is-selected"), selected, "A pan is not a selection click");
   });
+  await scenario("picking remains aligned after zooming", async () => {
+    await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+    await delay(500);
+    await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+    await delay(500);
+    await move(250, 710); await expectTarget("word w3");
+    await click(250, 710); await expectTarget("word w3", true);
+    await page.getByRole("button", { name: "Fit page", exact: true }).click();
+    await delay(500);
+    await click(450, 370); await expectTarget("word w2", true);
+  });
   await scenario("layer switches are respected by hit testing", async () => {
     await page.getByRole("checkbox", { name: "Words", exact: true }).uncheck();
     await move(250, 370); await expectTarget("line l1");
     await page.getByRole("checkbox", { name: "Words", exact: true }).check();
+    await move(450, 370); await expectTarget("word w2");
+  });
+  await scenario("replacement XML clears old hover and click state", async () => {
+    await click(250, 370, 2); await expectTarget("line l1", true);
+    await page.locator('input[type="file"]').nth(1).setInputFiles({ name: "replacement.xml", mimeType: "application/xml", buffer: Buffer.from(xml.replace('CONTENT="Alpha"', 'CONTENT="AlphaNew"')) });
+    await page.locator('.overlay-line[aria-label*="AlphaNew"]').waitFor({ state: "attached" });
+    await click(250, 370); await expectTarget("word w1", true);
     await move(450, 370); await expectTarget("word w2");
   });
   await scenario("hover clears on leaving and Escape exits inspection", async () => {
