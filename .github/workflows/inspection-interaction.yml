@@ -1,0 +1,38 @@
+name: Inspection Interaction
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/inspection-interaction.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chrome-interaction:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+      - name: Test inspection with real mouse events
+        working-directory: frontend
+        env:
+          CHROME_BIN: /usr/bin/google-chrome
+        run: node benchmark/inspect-interaction.mjs
+      - name: Upload interaction results and failure screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: inspection-interaction-${{ github.sha }}
+          path: frontend/benchmark-results/inspection/
+          if-no-files-found: warn
+          retention-days: 14
