@@ -1,0 +1,24 @@
+/* Higher specificity than legacy styles.css, regardless of import order. */
+.viewer-frame .page-overlay.is-inspect-mode,
+.viewer-frame .page-overlay.is-inspect-mode .overlay-node {
+  pointer-events: none;
+}
+.viewer-frame.is-inspecting .openseadragon-canvas { cursor: crosshair; }
+.viewer-frame .page-overlay .overlay-node.is-inspect-hover { fill: rgba(56,189,248,.06); }
+.viewer-frame .page-overlay .overlay-node.is-inspect-target { fill: rgba(250,204,21,.20); stroke-width: 2.8; }
+.inspection-status {
+  position: absolute;
+  z-index: 8;
+  top: 50px;
+  left: 10px;
+  max-width: calc(100% - 20px);
+  padding: 6px 9px;
+  border-radius: 6px;
+  color: #e2e8f0;
+  background: rgba(15,23,42,.90);
+  font-size: .72rem;
+  line-height: 1.4;
+  pointer-events: none;
+  overflow-wrap: anywhere;
+}
+.inspection-status strong { color: #fde68a; }
