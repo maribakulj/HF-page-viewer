@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import OpenSeadragon from "openseadragon";
 
-import { candidateForClickDetail, inspectCandidatesAtPoint } from "../inspectGeometry";
 import { flattenReadingOrderRefs, geometryCenter } from "../pageModel";
 import type { AlignmentStatus } from "../pageModel";
 import {
@@ -13,6 +12,8 @@ import {
 } from "../renderPolicy";
 import type { RenderLod, RenderWindow } from "../renderPolicy";
 import type { ImageInfo, LayerState, OverlayNode, PageDTO } from "../types";
+import { useOverlayInspection } from "../useOverlayInspection";
+import "../inspection.css";
 import { focusImageRectForNode } from "../viewerFocus";
 import {
   viewerOpenFailureCode,
@@ -199,9 +200,6 @@ export function PageViewer({
   const [renderView, setRenderView] = useState<RenderViewState>(DEFAULT_RENDER_VIEW);
   const [viewerDiagnostic, setViewerDiagnostic] = useState<ViewerLoadDiagnostic | null>(null);
   const [inspectMode, setInspectMode] = useState(false);
-  const [inspectHoveredKeys, setInspectHoveredKeys] = useState<ReadonlySet<string>>(new Set());
-  const [inspectTargetKey, setInspectTargetKey] = useState<string | null>(null);
-  const inspectSignatureRef = useRef("");
   pageRef.current = page;
   alignmentRef.current = alignment;
   onViewerOpenRef.current = onViewerOpen;
@@ -446,66 +444,27 @@ export function PageViewer({
 
   const viewWidth = page?.width && page.width > 0 ? page.width : image.width;
   const viewHeight = page?.height && page.height > 0 ? page.height : image.height;
-
-  const inspectPointFromEvent = useCallback((event: React.PointerEvent<SVGSVGElement>) => {
-    const overlay = overlayRef.current;
-    if (!overlay) return null;
-    const rect = overlay.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return null;
-    return {
-      x: ((event.clientX - rect.left) / rect.width) * viewWidth,
-      y: ((event.clientY - rect.top) / rect.height) * viewHeight,
-    };
-  }, [viewHeight, viewWidth]);
-
-  const inspectCandidatesForEvent = useCallback((event: React.PointerEvent<SVGSVGElement>) => {
-    const point = inspectPointFromEvent(event);
-    return point ? inspectCandidatesAtPoint(renderedNodes, point) : [];
-  }, [inspectPointFromEvent, renderedNodes]);
-
-  const updateInspectHover = useCallback((candidates: OverlayNode[]) => {
-    const signature = candidates.map((candidate) => candidate.key).join("|");
-    if (signature === inspectSignatureRef.current) return;
-    inspectSignatureRef.current = signature;
-    setInspectHoveredKeys(new Set(candidates.map((candidate) => candidate.key)));
-    setInspectTargetKey(candidates[0]?.key ?? null);
-  }, []);
-
-  const handleInspectPointerMove = useCallback((event: React.PointerEvent<SVGSVGElement>) => {
-    if (!inspectMode) return;
-    updateInspectHover(inspectCandidatesForEvent(event));
-  }, [inspectCandidatesForEvent, inspectMode, updateInspectHover]);
-
-  const handleInspectPointerLeave = useCallback(() => {
-    if (!inspectMode) return;
-    inspectSignatureRef.current = "";
-    setInspectHoveredKeys(new Set());
-    setInspectTargetKey(null);
-  }, [inspectMode]);
-
-  const handleInspectClick = useCallback((event: React.MouseEvent<SVGSVGElement>) => {
-    if (!inspectMode) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const overlay = overlayRef.current;
-    if (!overlay) return;
-    const rect = overlay.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
-    const point = {
-      x: ((event.clientX - rect.left) / rect.width) * viewWidth,
-      y: ((event.clientY - rect.top) / rect.height) * viewHeight,
-    };
-    const candidates = inspectCandidatesAtPoint(renderedNodes, point);
-    const target = candidateForClickDetail(candidates, event.detail);
-    updateInspectHover(candidates);
-    setInspectTargetKey(target?.key ?? null);
-    if (target) onSelect(target.key);
-  }, [inspectMode, onSelect, renderedNodes, updateInspectHover, viewHeight, viewWidth]);
-
+  const inspection = useOverlayInspection({
+    viewerRef,
+    overlayRef,
+    enabled: inspectMode && Boolean(page) && alignment.canRender,
+    nodes,
+    layers,
+    width: viewWidth,
+    height: viewHeight,
+    imageKey: JSON.stringify([image.url, image.tile_source_url, image.width, image.height]),
+    onSelect,
+    onExit: () => setInspectMode(false),
+  });
+  // Keep the bounded renderer: only the current hit needs an extra preview
+  // when its word/glyph was omitted by the LOD or SVG shape budget.
+  const extraInspectionTarget = inspectMode && inspection.target
+    && !renderedNodes.some((node) => node.key === inspection.target!.key)
+    ? inspection.target : null;
 
   return (
     <section
-      className="viewer-frame"
+      className={`viewer-frame${inspectMode ? " is-inspecting" : ""}`}
       aria-label="Page image and OCR layout viewer"
       data-viewer-source-kind={viewerSourceKind(image)}
     >
@@ -520,9 +479,6 @@ export function PageViewer({
           data-render-lod={effectiveLod}
           data-render-relative-zoom={renderView.relativeZoom ?? ""}
           data-rendered-shapes={renderedNodes.length}
-          onPointerMove={handleInspectPointerMove}
-          onPointerLeave={handleInspectPointerLeave}
-          onClick={handleInspectClick}
         >
           {renderedNodes.map((node) => (
             <GeometryShape
@@ -531,11 +487,23 @@ export function PageViewer({
               selected={node.key === selectedKey}
               searchMatch={highlightedKeys.has(node.key)}
               searchActive={node.key === searchActiveKey}
-              inspectHovered={inspectHoveredKeys.has(node.key)}
-              inspectTarget={node.key === inspectTargetKey}
+              inspectHovered={inspectMode && inspection.hoveredKeys.has(node.key)}
+              inspectTarget={inspectMode && node.key === inspection.target?.key}
               onSelect={onSelect}
             />
           ))}
+          {extraInspectionTarget && (
+            <GeometryShape
+              key={`inspect:${extraInspectionTarget.key}`}
+              node={extraInspectionTarget}
+              selected={extraInspectionTarget.key === selectedKey}
+              searchMatch={highlightedKeys.has(extraInspectionTarget.key)}
+              searchActive={extraInspectionTarget.key === searchActiveKey}
+              inspectHovered
+              inspectTarget
+              onSelect={onSelect}
+            />
+          )}
           {renderedBaselines.map((node) => (
             <polyline
               key={`${node.key}:baseline`}
@@ -586,18 +554,21 @@ export function PageViewer({
           type="button"
           className={inspectMode ? "is-active" : ""}
           aria-pressed={inspectMode}
-          onClick={() => {
-            setInspectMode((current) => !current);
-            inspectSignatureRef.current = "";
-            setInspectHoveredKeys(new Set());
-            setInspectTargetKey(null);
-          }}
+          disabled={!page || !alignment.canRender}
+          onClick={() => setInspectMode((current) => !current)}
           aria-label="Toggle overlap inspection mode"
-          title="Inspect overlaps: hover to tint, click/double-click/triple-click to cycle nested elements"
+          title="Hover to inspect; click repeatedly at the same point to cycle overlaps; Escape to exit"
         >
           Inspect
         </button>
       </div>
+      {inspectMode && (
+        <div className="inspection-status" aria-label="Inspection target">
+          {inspection.target ? (
+            <><strong>{inspection.target.kind} {inspection.target.elementId}</strong> · {inspection.index + 1}/{inspection.count} · Click again here for the next overlap.</>
+          ) : "Inspect: hover to tint; click to select; repeat at the same point to cycle. Escape exits."}
+        </div>
+      )}
 
       {(wordsDeferred || glyphsDeferred) && (
         <div className="viewer-banner viewer-banner-detail">
